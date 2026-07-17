@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { money, products, Product } from "../farmose-data";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { defaultTheme, money, products as fallbackProducts, Product, SiteTheme } from "../farmose-data";
 
 type View = "home" | "shop" | "product" | "checkout" | "wholesale" | "about";
 type PurchaseType = "once" | "weekly";
@@ -18,7 +18,7 @@ function linePrice(product: Product, line: CartLine) {
   return line.purchaseType === "weekly" ? product.price * 0.95 : product.price;
 }
 
-function cartMessage(lines: CartLine[]) {
+function cartMessage(lines: CartLine[], products: Product[]) {
   const selected = lines
     .map((line) => {
       const product = products.find((item) => item.slug === line.slug);
@@ -63,12 +63,12 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (slug: strin
   );
 }
 
-function Header({ cartCount, onCart }: { cartCount: number; onCart: () => void }) {
+function Header({ cartCount, onCart, products, announcement }: { cartCount: number; onCart: () => void; products: Product[]; announcement: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <>
-      <div className="announcement">FREE DELIVERY IN FREETOWN ON ORDERS OVER LE 500</div>
+    <div className="top-navigation">
+      <div className="announcement">{announcement}</div>
       <header className="site-header">
         <nav className="nav-shell" aria-label="Main navigation">
           <div className="nav-left desktop-nav">
@@ -123,7 +123,7 @@ function Header({ cartCount, onCart }: { cartCount: number; onCart: () => void }
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -132,11 +132,13 @@ function CartDrawer({
   lines,
   onClose,
   onQuantity,
+  products,
 }: {
   open: boolean;
   lines: CartLine[];
   onClose: () => void;
   onQuantity: (slug: string, quantity: number) => void;
+  products: Product[];
 }) {
   const subtotal = lines.reduce((sum, line) => {
     const product = products.find((item) => item.slug === line.slug);
@@ -203,7 +205,7 @@ function CartDrawer({
             <label className="gift-option"><input type="checkbox" /><span>Is this a gift?</span></label>
             <div className="subtotal"><span>Subtotal</span><b>{money(subtotal)}</b></div>
             <a className="button dark wide" href="/checkout">Checkout — {money(subtotal)}</a>
-            <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines))} target="_blank" rel="noreferrer">
+            <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines, products))} target="_blank" rel="noreferrer">
               <span>◉</span> Order this cart via WhatsApp
             </a>
             <small>Delivery fee is calculated at checkout.</small>
@@ -214,14 +216,14 @@ function CartDrawer({
   );
 }
 
-function Home({ onAdd }: { onAdd: (slug: string) => void }) {
+function Home({ onAdd, products, theme }: { onAdd: (slug: string) => void; products: Product[]; theme: SiteTheme }) {
   return (
     <main>
       <section className="home-hero">
         <div className="hero-copy">
           <span className="sticker">CLEAN LOCAL FOOD</span>
-          <h1>From our farms to your kitchen — <em>beautifully clean.</em></h1>
-          <p>Premium Sierra Leonean ingredients, carefully washed, processed and packed to save you time without losing the local flavour you love.</p>
+          <h1>{theme.heroTitle} <em>{theme.heroEmphasis}</em></h1>
+          <p>{theme.heroBody}</p>
           <div className="button-row">
             <a className="button dark" href="/shop">Shop local produce</a>
             <a className="text-link" href="/wholesale">Buying for a business? <u>Go wholesale</u></a>
@@ -232,7 +234,7 @@ function Home({ onAdd }: { onAdd: (slug: string) => void }) {
           </div>
         </div>
         <div className="hero-image">
-          <img src="/images/farmose-peppers.webp" alt="Fresh locally grown peppers packed by Farmose" />
+          <img src={theme.heroImage} alt="Fresh locally grown produce prepared by Farmose" />
           <div className="image-note"><b>Local colour.</b><br />Handled with care.</div>
         </div>
       </section>
@@ -303,7 +305,7 @@ function Home({ onAdd }: { onAdd: (slug: string) => void }) {
   );
 }
 
-function Shop({ onAdd }: { onAdd: (slug: string) => void }) {
+function Shop({ onAdd, products }: { onAdd: (slug: string) => void; products: Product[] }) {
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const categories = ["All", "Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"];
@@ -342,7 +344,7 @@ function Shop({ onAdd }: { onAdd: (slug: string) => void }) {
   );
 }
 
-function ProductPage({ product, onAdd }: { product: Product; onAdd: (slug: string, quantity?: number, purchaseType?: PurchaseType) => void }) {
+function ProductPage({ product, products, onAdd }: { product: Product; products: Product[]; onAdd: (slug: string, quantity?: number, purchaseType?: PurchaseType) => void }) {
   const [quantity, setQuantity] = useState(1);
   const [purchaseType, setPurchaseType] = useState<"once" | "weekly">("once");
   const selectedPrice = purchaseType === "weekly" ? product.price * 0.95 : product.price;
@@ -409,7 +411,7 @@ function ProductPage({ product, onAdd }: { product: Product; onAdd: (slug: strin
   );
 }
 
-function Checkout({ lines, clearCart }: { lines: CartLine[]; clearCart: () => void }) {
+function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart: () => void; products: Product[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
@@ -494,7 +496,7 @@ function Checkout({ lines, clearCart }: { lines: CartLine[]; clearCart: () => vo
             <label><input type="radio" name="payment" value="AfriMoney" /><span><b>AfriMoney</b><small>Payment instructions sent after stock confirmation</small></span><strong>AM</strong></label>
             <label><input type="radio" name="payment" value="Cash on delivery" /><span><b>Cash on delivery</b><small>Pay when your Farmose order arrives</small></span><strong>Le</strong></label>
           </fieldset>
-          {error && <div className="form-error">{error} <a href={whatsappUrl(cartMessage(lines))} target="_blank" rel="noreferrer">Send this order on WhatsApp instead.</a></div>}
+          {error && <div className="form-error">{error} <a href={whatsappUrl(cartMessage(lines, products))} target="_blank" rel="noreferrer">Send this order on WhatsApp instead.</a></div>}
           <button className="button dark wide" type="submit" disabled={loading}>{loading ? "Placing your order…" : `Place order — ${money(total)}`}</button>
           <p className="checkout-note">Your order is confirmed only after Farmose checks fresh-item availability and delivery timing.</p>
         </form>
@@ -609,7 +611,22 @@ function Footer() {
 export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const product = products.find((item) => item.slug === slug) ?? products[0];
+  const [products, setProducts] = useState<Product[]>(fallbackProducts);
+  const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
+  const product = products.find((item) => item.slug === slug) ?? products[0] ?? fallbackProducts[0];
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/catalog")
+      .then((response) => response.json())
+      .then((data: { products?: Product[]; theme?: SiteTheme }) => {
+        if (!active) return;
+        if (data.products?.length) setProducts(data.products);
+        if (data.theme) setTheme(data.theme);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     try { setLines(JSON.parse(localStorage.getItem("farmose-cart") ?? "[]")); } catch { setLines([]); }
@@ -631,17 +648,29 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
     setLines((current) => quantity <= 0 ? current.filter((line) => line.slug !== slugToChange) : current.map((line) => line.slug === slugToChange ? { ...line, quantity } : line));
   }
 
+  const themeStyle = {
+    "--forest": theme.primaryColor,
+    "--cream": theme.backgroundColor,
+    "--orange": theme.accentColor,
+    "--sky": theme.highlightColor,
+    "--sans": theme.bodyFont,
+    "--serif": theme.headingFont,
+    "--base-font-size": `${theme.baseFontSize}px`,
+    "--heading-max-size": `${theme.headingMaxSize}px`,
+    "--button-radius": `${theme.buttonRadius}px`,
+  } as CSSProperties;
+
   return (
-    <div className="site-shell">
-      <Header cartCount={count} onCart={() => setCartOpen(true)} />
-      {view === "home" && <Home onAdd={add} />}
-      {view === "shop" && <Shop onAdd={add} />}
-      {view === "product" && <ProductPage product={product} onAdd={add} />}
-      {view === "checkout" && <Checkout lines={lines} clearCart={() => setLines([])} />}
+    <div className="site-shell" style={themeStyle}>
+      <Header cartCount={count} onCart={() => setCartOpen(true)} products={products} announcement={theme.announcement} />
+      {view === "home" && <Home onAdd={add} products={products} theme={theme} />}
+      {view === "shop" && <Shop onAdd={add} products={products} />}
+      {view === "product" && <ProductPage product={product} products={products} onAdd={add} />}
+      {view === "checkout" && <Checkout lines={lines} clearCart={() => setLines([])} products={products} />}
       {view === "wholesale" && <Wholesale />}
       {view === "about" && <About />}
       <Footer />
-      <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} />
+      <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
       <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp">◉<span>WhatsApp</span></a>
     </div>
   );

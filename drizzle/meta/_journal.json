@@ -8,6 +8,13 @@
       "when": 1784229960645,
       "tag": "0000_lonely_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784250890410,
+      "tag": "0001_exotic_scarecrow",
+      "breakpoints": true
     }
   ]
 }

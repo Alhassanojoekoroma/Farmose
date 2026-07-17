@@ -16,6 +16,41 @@ export type Product = {
   features: string[];
 };
 
+export type SiteTheme = {
+  primaryColor: string;
+  backgroundColor: string;
+  accentColor: string;
+  highlightColor: string;
+  bodyFont: string;
+  headingFont: string;
+  baseFontSize: number;
+  headingMaxSize: number;
+  buttonRadius: number;
+  announcement: string;
+  heroTitle: string;
+  heroEmphasis: string;
+  heroBody: string;
+  heroImage: string;
+};
+
+export const defaultTheme: SiteTheme = {
+  primaryColor: "#063f2f",
+  backgroundColor: "#fbf7e9",
+  accentColor: "#ff7a2f",
+  highlightColor: "#cfe1f6",
+  bodyFont: "Arial, Helvetica, sans-serif",
+  headingFont: "Georgia, 'Times New Roman', serif",
+  baseFontSize: 16,
+  headingMaxSize: 84,
+  buttonRadius: 999,
+  announcement: "FREE DELIVERY IN FREETOWN ON ORDERS OVER LE 500",
+  heroTitle: "From our farms to your kitchen —",
+  heroEmphasis: "beautifully clean.",
+  heroBody:
+    "Premium Sierra Leonean ingredients, carefully washed, processed and packed to save you time without losing the local flavour you love.",
+  heroImage: "/images/farmose-peppers.webp",
+};
+
 export const products: Product[] = [
   {
     slug: "groundnut-paste-950g",

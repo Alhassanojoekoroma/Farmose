@@ -40,6 +40,29 @@ test("durable order storage is configured with a migration", async () => {
   assert.match(migration, /CREATE UNIQUE INDEX `orders_order_number_unique`/);
 });
 
+test("the private admin workspace and managed catalog are configured", async () => {
+  const [hosting, adminPage, adminAuth, adminApi, panel, css, migration] = await Promise.all([
+    readFile(new URL(".openai/hosting.json", root), "utf8"),
+    readFile(new URL("app/admin/page.tsx", root), "utf8"),
+    readFile(new URL("app/admin-auth.ts", root), "utf8"),
+    readFile(new URL("app/api/admin/catalog/route.ts", root), "utf8"),
+    readFile(new URL("app/components/AdminPanel.tsx", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+    readFile(new URL("drizzle/0001_exotic_scarecrow.sql", root), "utf8"),
+  ]);
+  assert.match(hosting, /"r2": "ASSETS"/);
+  assert.match(adminPage, /requireChatGPTUser/);
+  assert.match(adminPage, /isAdminEmail/);
+  assert.match(adminAuth, /FARMOSE_ADMIN_EMAILS/);
+  assert.match(adminApi, /requireAdminApi/);
+  assert.match(panel, /Save product/);
+  assert.match(panel, /Publish appearance/);
+  assert.match(css, /\.top-navigation \{ position: sticky/);
+  assert.match(css, /repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(migration, /CREATE TABLE `catalog_products`/);
+  assert.match(migration, /CREATE TABLE `site_settings`/);
+});
+
 test("the disposable starter preview is gone", async () => {
   const [page, layout, packageJson] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
