@@ -1,6 +1,7 @@
 "use client";
 
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { FaWhatsapp } from "react-icons/fa";
 import { defaultTheme, money, products as fallbackProducts, Product, SiteTheme } from "../farmose-data";
 
 type View = "home" | "shop" | "product" | "checkout" | "wholesale" | "about";
@@ -206,7 +207,7 @@ function CartDrawer({
             <div className="subtotal"><span>Subtotal</span><b>{money(subtotal)}</b></div>
             <a className="button dark wide" href="/checkout">Checkout — {money(subtotal)}</a>
             <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines, products))} target="_blank" rel="noreferrer">
-              <span>◉</span> Order this cart via WhatsApp
+              <FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Order this cart via WhatsApp
             </a>
             <small>Delivery fee is calculated at checkout.</small>
           </div>
@@ -387,8 +388,17 @@ function ProductPage({ product, products, onAdd }: { product: Product; products:
             </div>
             <button className="button dark grow" type="button" onClick={() => onAdd(product.slug, quantity, purchaseType)}>Add to cart — {money(selectedPrice * quantity)}</button>
           </div>
-          <a className="button whatsapp wide product-whatsapp" href={whatsappUrl(message)} target="_blank" rel="noreferrer">◉ Order this item via WhatsApp</a>
+          <a className="button whatsapp wide product-whatsapp" href={whatsappUrl(message)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Order this item via WhatsApp</a>
           <p className="microcopy">Fresh-item availability may vary. We confirm every order before delivery.</p>
+          {product.video && (
+            <section className="product-video-block">
+              <p className="eyebrow">WATCH THE PRODUCT</p>
+              <video controls playsInline preload="metadata" poster={product.image}>
+                <source src={product.video} />
+                Your browser does not support product videos.
+              </video>
+            </section>
+          )}
           <hr />
           <div className="use-block">
             <p className="eyebrow">FROM PACK TO POT</p>
@@ -462,7 +472,7 @@ function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart
         <div className="confirmation-card">
           <span>✓</span><p className="eyebrow">ORDER RECEIVED</p><h1>Thank you. We’re checking your basket.</h1>
           <p>Your order number is <b>{orderNumber}</b>. Farmose will confirm availability, delivery timing and Mobile Money details before dispatch.</p>
-          <a className="button whatsapp wide" href={whatsappUrl(`Hello Farmose! I have just placed order ${orderNumber} for ${money(total)}. Please help me confirm it.`)} target="_blank" rel="noreferrer">◉ Confirm order on WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl(`Hello Farmose! I have just placed order ${orderNumber} for ${money(total)}. Please help me confirm it.`)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Confirm order on WhatsApp</a>
           <a className="text-link" href="/shop">Continue shopping →</a>
         </div>
       </main>
@@ -533,7 +543,7 @@ function Wholesale() {
           <label><span>Your name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
           <label><span>Products and quantities</span><textarea rows={4} value={form.need} onChange={(event) => setForm({ ...form, need: event.target.value })} placeholder="e.g. 20 kg cleaned catfish, 10 jars groundnut paste…" /></label>
           <label><span>How often?</span><select value={form.cadence} onChange={(event) => setForm({ ...form, cadence: event.target.value })}><option>One-time order</option><option>Weekly</option><option>Twice weekly</option><option>Monthly</option><option>Not sure yet</option></select></label>
-          <a className="button whatsapp wide" href={whatsappUrl(message)} target="_blank" rel="noreferrer">◉ Send wholesale request on WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl(message)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Send wholesale request on WhatsApp</a>
           <small>This opens a ready-written message. You can review it before sending.</small>
         </form>
       </section>
@@ -582,7 +592,7 @@ function About() {
           <p className="eyebrow">NEED HELP?</p>
           <h3>Talk to the Farmose team.</h3>
           <p>Ask about availability, cleaning preferences, delivery areas or a regular wholesale supply.</p>
-          <a className="button whatsapp wide" href={whatsappUrl("Hello Farmose! I would like to ask about your products and store.")} target="_blank" rel="noreferrer">Open WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl("Hello Farmose! I would like to ask about your products and store.")} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Open WhatsApp</a>
         </div>
       </section>
     </main>
@@ -671,7 +681,7 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
       {view === "about" && <About />}
       <Footer />
       <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
-      <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp">◉<span>WhatsApp</span></a>
+      <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /><span>WhatsApp</span></a>
     </div>
   );
 }

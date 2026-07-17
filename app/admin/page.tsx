@@ -12,7 +12,9 @@ export default async function AdminPage() {
         <div>
           <p>PRIVATE FARMOSE WORKSPACE</p>
           <h1>This account does not have administrator access.</h1>
-          <a href={chatGPTSignOutPath("/")}>Return to the storefront</a>
+          <p>Sign out, then use the approved Farmose administrator account.</p>
+          <a href={chatGPTSignOutPath("/")}>Sign out</a>
+          <a href="/">Return to the storefront</a>
         </div>
       </main>
     );

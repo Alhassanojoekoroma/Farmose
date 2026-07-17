@@ -15,6 +15,13 @@
       "when": 1784250890410,
       "tag": "0001_exotic_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784255683132,
+      "tag": "0002_lazy_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

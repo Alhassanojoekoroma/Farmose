@@ -1,30 +1,85 @@
 import { env } from "cloudflare:workers";
 import { requireAdminApi } from "../../../admin-auth";
 
+type StoredChunk = { arrayBuffer: () => Promise<ArrayBuffer> };
 type AssetBucket = {
-  put: (key: string, value: ArrayBuffer, options?: { httpMetadata?: { contentType?: string } }) => Promise<unknown>;
+  put: (key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }) => Promise<unknown>;
+  get: (key: string) => Promise<StoredChunk | null>;
+  delete: (keys: string | string[]) => Promise<unknown>;
 };
+
+const MAX_CHUNK_BYTES = 600 * 1024;
+const IMAGE_LIMIT = 12 * 1024 * 1024;
+const VIDEO_LIMIT = 40 * 1024 * 1024;
+
+function uploadError(message: string, status = 400) {
+  return Response.json({ error: message }, { status });
+}
 
 export async function POST(request: Request) {
   const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
 
-  const form = await request.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return Response.json({ error: "Choose an image to upload." }, { status: 400 });
+  const url = new URL(request.url);
+  const uploadId = url.searchParams.get("uploadId") ?? "";
+  const index = Number(url.searchParams.get("index"));
+  const total = Number(url.searchParams.get("total"));
+  const filename = url.searchParams.get("name") ?? "upload";
+  const contentType = url.searchParams.get("type") ?? "";
+  const declaredSize = Number(url.searchParams.get("size"));
+
+  if (!/^[a-f0-9-]{20,64}$/i.test(uploadId)) return uploadError("The upload identifier is invalid.");
+  if (!Number.isInteger(index) || !Number.isInteger(total) || index < 0 || total < 1 || index >= total || total > 100) {
+    return uploadError("The upload chunk information is invalid.");
   }
-  if (!file.type.startsWith("image/")) {
-    return Response.json({ error: "Only image files can be uploaded here." }, { status: 400 });
+  if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) {
+    return uploadError("Only image and video files can be uploaded here.");
   }
-  if (file.size > 8 * 1024 * 1024) {
-    return Response.json({ error: "Images must be smaller than 8 MB." }, { status: 400 });
+  const fileLimit = contentType.startsWith("image/") ? IMAGE_LIMIT : VIDEO_LIMIT;
+  if (!Number.isFinite(declaredSize) || declaredSize < 1 || declaredSize > fileLimit) {
+    return uploadError(`${contentType.startsWith("image/") ? "Images" : "Videos"} must be smaller than ${fileLimit / 1024 / 1024} MB.`);
+  }
+
+  const chunk = await request.arrayBuffer();
+  if (chunk.byteLength < 1 || chunk.byteLength > MAX_CHUNK_BYTES) {
+    return uploadError("Each upload part must be smaller than 600 KB.", 413);
   }
 
   const bucket = (env as unknown as { ASSETS?: AssetBucket }).ASSETS;
-  if (!bucket) return Response.json({ error: "Image storage is not available." }, { status: 503 });
-  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+  if (!bucket) return uploadError("Media storage is not available.", 503);
+
+  const temporaryPrefix = `farmose-temp/${uploadId}`;
+  const chunkKey = `${temporaryPrefix}/${String(index).padStart(3, "0")}`;
+  await bucket.put(chunkKey, chunk);
+
+  if (index !== total - 1) {
+    return Response.json({ received: index + 1, total }, { status: 202 });
+  }
+
+  const chunkKeys = Array.from({ length: total }, (_, chunkIndex) => `${temporaryPrefix}/${String(chunkIndex).padStart(3, "0")}`);
+  const parts: Uint8Array[] = [];
+  let combinedSize = 0;
+  for (const key of chunkKeys) {
+    const stored = await bucket.get(key);
+    if (!stored) return uploadError("An upload part is missing. Please try the upload again.", 409);
+    const part = new Uint8Array(await stored.arrayBuffer());
+    combinedSize += part.byteLength;
+    if (combinedSize > fileLimit) return uploadError("The uploaded file is too large.", 413);
+    parts.push(part);
+  }
+  if (combinedSize !== declaredSize) return uploadError("The uploaded file was incomplete. Please try again.", 409);
+
+  const combined = new Uint8Array(combinedSize);
+  let offset = 0;
+  for (const part of parts) {
+    combined.set(part, offset);
+    offset += part.byteLength;
+  }
+
+  const extension = filename.split(".").pop()?.replace(/[^a-z0-9]/gi, "").toLowerCase() || (contentType.startsWith("video/") ? "mp4" : "jpg");
   const key = `farmose/${crypto.randomUUID()}.${extension}`;
-  await bucket.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
+  await bucket.put(key, combined, { httpMetadata: { contentType } });
+  await bucket.delete(chunkKeys);
+
   return Response.json({ url: `/api/media?key=${encodeURIComponent(key)}` }, { status: 201 });
 }

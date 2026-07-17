@@ -1,0 +1,1 @@
+ALTER TABLE `catalog_products` ADD `video` text DEFAULT '' NOT NULL;

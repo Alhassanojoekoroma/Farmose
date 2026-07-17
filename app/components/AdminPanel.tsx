@@ -33,6 +33,7 @@ const blankProduct = (sortOrder: number): ManagedProduct => ({
   price: 0,
   unit: "",
   image: "/images/farmose-groundnut-display.webp",
+  video: "",
   imagePosition: "center",
   color: "#d9e9b5",
   rating: 5,
@@ -55,7 +56,8 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
   const [draft, setDraft] = useState<ManagedProduct>(blankProduct(0));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<"image" | "video" | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -145,24 +147,61 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
     setSaving(false);
   }
 
-  async function uploadImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function uploadMedia(event: ChangeEvent<HTMLInputElement>, kind: "image" | "video") {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
-    setUploading(true);
+    const typeIsValid = kind === "image" ? file.type.startsWith("image/") : file.type.startsWith("video/");
+    const maxBytes = (kind === "image" ? 12 : 40) * 1024 * 1024;
+    if (!typeIsValid) {
+      setError(`Choose a ${kind} file.`);
+      input.value = "";
+      return;
+    }
+    if (file.size > maxBytes) {
+      setError(`${kind === "image" ? "Images" : "Videos"} must be smaller than ${kind === "image" ? "12" : "40"} MB.`);
+      input.value = "";
+      return;
+    }
+
+    setUploading(kind);
+    setUploadProgress(0);
     setError("");
-    const form = new FormData();
-    form.set("file", file);
     try {
-      const response = await fetch("/api/admin/upload", { method: "POST", body: form });
-      const result = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !result.url) throw new Error(result.error || "The image could not be uploaded.");
-      updateDraft("image", result.url);
-      setNotice("Image uploaded. Save the product to publish it.");
+      const chunkSize = 512 * 1024;
+      const total = Math.max(1, Math.ceil(file.size / chunkSize));
+      const uploadId = crypto.randomUUID();
+      let uploadedUrl = "";
+
+      for (let index = 0; index < total; index += 1) {
+        const query = new URLSearchParams({
+          uploadId,
+          index: String(index),
+          total: String(total),
+          name: file.name,
+          type: file.type,
+          size: String(file.size),
+        });
+        const response = await fetch(`/api/admin/upload?${query}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)),
+        });
+        const result = (await response.json()) as { url?: string; error?: string };
+        if (!response.ok) throw new Error(result.error || `The ${kind} could not be uploaded.`);
+        if (result.url) uploadedUrl = result.url;
+        setUploadProgress(Math.round(((index + 1) / total) * 100));
+      }
+
+      if (!uploadedUrl) throw new Error(`The ${kind} upload did not finish.`);
+      updateDraft(kind, uploadedUrl);
+      setNotice(`${kind === "image" ? "Image" : "Video"} uploaded. Save the product to publish it.`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The image could not be uploaded.");
+      setError(reason instanceof Error ? reason.message : `The ${kind} could not be uploaded.`);
     } finally {
-      setUploading(false);
-      event.target.value = "";
+      setUploading(null);
+      setUploadProgress(0);
+      input.value = "";
     }
   }
 
@@ -254,7 +293,8 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
               <label className="admin-field"><span>Short card description</span><textarea required rows={3} value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} /></label>
               <label className="admin-field"><span>Product page description</span><textarea required rows={4} value={draft.details} onChange={(event) => updateDraft("details", event.target.value)} /></label>
               <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>Feature {index + 1}</span><input value={draft.features[index] || ""} onChange={(event) => updateDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
-              <div className="admin-upload"><div><strong>Product image</strong><small>JPG, PNG or WebP up to 8 MB</small></div><label><input type="file" accept="image/*" onChange={uploadImage} />{uploading ? "Uploading…" : "Upload new image"}</label><input aria-label="Product image URL" value={draft.image} onChange={(event) => updateDraft("image", event.target.value)} /></div>
+              <div className="admin-upload"><div><strong>Product image</strong><small>JPG, PNG or WebP up to 12 MB. Large files upload in safe, smaller parts.</small></div><label><input type="file" accept="image/*" onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Upload new image"}</label><input aria-label="Product image URL" value={draft.image} onChange={(event) => updateDraft("image", event.target.value)} /></div>
+              <div className="admin-upload"><div><strong>Product video</strong><small>MP4 or WebM up to 40 MB. It appears in a compact player on the product page.</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Upload product video"}</label><input aria-label="Product video URL" value={draft.video ?? ""} onChange={(event) => updateDraft("video", event.target.value)} placeholder="Optional video URL" /></div>
               <div className="admin-actions">{selectedSlug && <button className="danger" type="button" onClick={removeProduct}>Delete product</button>}<button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save product"}</button></div>
             </form>
           </div>
@@ -271,7 +311,7 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
                 <label><span>Heading font</span><select value={theme.headingFont} onChange={(event) => setTheme({ ...theme, headingFont: event.target.value })}><option value="Georgia, 'Times New Roman', serif">Georgia</option><option value="'Times New Roman', Times, serif">Times New Roman</option><option value="Arial, Helvetica, sans-serif">Arial</option></select></label>
                 <label><span>Body font</span><select value={theme.bodyFont} onChange={(event) => setTheme({ ...theme, bodyFont: event.target.value })}><option value="Arial, Helvetica, sans-serif">Arial</option><option value="Verdana, Geneva, sans-serif">Verdana</option><option value="Georgia, 'Times New Roman', serif">Georgia</option></select></label>
                 <label><span>Body size ({theme.baseFontSize}px)</span><input type="range" min="14" max="20" value={theme.baseFontSize} onChange={(event) => setTheme({ ...theme, baseFontSize: Number(event.target.value) })} /></label>
-                <label><span>Headline size ({theme.headingMaxSize}px)</span><input type="range" min="64" max="100" value={theme.headingMaxSize} onChange={(event) => setTheme({ ...theme, headingMaxSize: Number(event.target.value) })} /></label>
+                <label><span>Headline size ({theme.headingMaxSize}px)</span><input type="range" min="56" max="76" value={theme.headingMaxSize} onChange={(event) => setTheme({ ...theme, headingMaxSize: Number(event.target.value) })} /></label>
                 <label><span>Button roundness ({theme.buttonRadius}px)</span><input type="range" min="4" max="999" value={theme.buttonRadius} onChange={(event) => setTheme({ ...theme, buttonRadius: Number(event.target.value) })} /></label>
               </div>
               <div className="admin-section-title copy-title"><div><p>HOME PAGE</p><h2>Message & hero</h2></div></div>

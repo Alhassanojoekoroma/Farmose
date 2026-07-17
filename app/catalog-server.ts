@@ -28,6 +28,7 @@ async function ensureCatalogTables() {
       price real NOT NULL,
       unit text NOT NULL,
       image text NOT NULL,
+      video text DEFAULT '' NOT NULL,
       image_position text DEFAULT 'center' NOT NULL,
       color text NOT NULL,
       rating real DEFAULT 5 NOT NULL,
@@ -45,6 +46,16 @@ async function ensureCatalogTables() {
       updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
   ]);
+
+  const productColumns = await d1.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
+  if (!productColumns.results.some((column) => column.name === "video")) {
+    try {
+      await d1.prepare("ALTER TABLE catalog_products ADD COLUMN video text DEFAULT '' NOT NULL").run();
+    } catch (error) {
+      const refreshedColumns = await d1.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
+      if (!refreshedColumns.results.some((column) => column.name === "video")) throw error;
+    }
+  }
 }
 
 function rowToProduct(row: ProductRow): ManagedProduct {
@@ -64,6 +75,7 @@ function rowToProduct(row: ProductRow): ManagedProduct {
     price: row.price,
     unit: row.unit,
     image: row.image,
+    video: row.video,
     imagePosition: row.imagePosition,
     color: row.color,
     rating: row.rating,
@@ -115,7 +127,7 @@ export async function readSiteTheme(): Promise<SiteTheme> {
     ...defaultTheme,
     ...stored,
     baseFontSize: numeric("baseFontSize", defaultTheme.baseFontSize),
-    headingMaxSize: numeric("headingMaxSize", defaultTheme.headingMaxSize),
+    headingMaxSize: Math.min(76, Math.max(56, numeric("headingMaxSize", defaultTheme.headingMaxSize))),
     buttonRadius: numeric("buttonRadius", defaultTheme.buttonRadius),
   };
 }
@@ -149,6 +161,7 @@ export async function saveManagedProduct(product: ManagedProduct) {
       price: product.price,
       unit: product.unit,
       image: product.image,
+      video: product.video ?? "",
       imagePosition: product.imagePosition ?? "center",
       color: product.color,
       rating: product.rating,
@@ -170,6 +183,7 @@ export async function saveManagedProduct(product: ManagedProduct) {
         price: product.price,
         unit: product.unit,
         image: product.image,
+        video: product.video ?? "",
         imagePosition: product.imagePosition ?? "center",
         color: product.color,
         rating: product.rating,

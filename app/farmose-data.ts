@@ -7,6 +7,7 @@ export type Product = {
   price: number;
   unit: string;
   image: string;
+  video?: string;
   imagePosition?: string;
   color: string;
   rating: number;
@@ -41,7 +42,7 @@ export const defaultTheme: SiteTheme = {
   bodyFont: "Arial, Helvetica, sans-serif",
   headingFont: "Georgia, 'Times New Roman', serif",
   baseFontSize: 16,
-  headingMaxSize: 84,
+  headingMaxSize: 66,
   buttonRadius: 999,
   announcement: "FREE DELIVERY IN FREETOWN ON ORDERS OVER LE 500",
   heroTitle: "From our farms to your kitchen —",

@@ -28,6 +28,7 @@ export const catalogProducts = sqliteTable("catalog_products", {
   price: real("price").notNull(),
   unit: text("unit").notNull(),
   image: text("image").notNull(),
+  video: text("video").notNull().default(""),
   imagePosition: text("image_position").notNull().default("center"),
   color: text("color").notNull(),
   rating: real("rating").notNull().default(5),
