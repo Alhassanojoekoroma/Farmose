@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: title, template: "%s | Farmose" },
     description,
     applicationName: "Farmose",
+    icons: { icon: "/favicon.png", shortcut: "/favicon.png" },
     keywords: ["Farmose", "Freetown groceries", "Sierra Leone local produce", "clean seafood", "groundnut paste"],
     openGraph: {
       title: "Farmose — Good food starts clean",

@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { money, products, Product } from "../farmose-data";
 
-type View = "home" | "shop" | "product" | "checkout" | "wholesale";
-type CartLine = { slug: string; quantity: number };
+type View = "home" | "shop" | "product" | "checkout" | "wholesale" | "about";
+type PurchaseType = "once" | "weekly";
+type CartLine = { slug: string; quantity: number; purchaseType?: PurchaseType };
 
 const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "").replace(/\D/g, "");
 
@@ -13,17 +14,21 @@ function whatsappUrl(message: string) {
   return `${base}?text=${encodeURIComponent(message)}`;
 }
 
+function linePrice(product: Product, line: CartLine) {
+  return line.purchaseType === "weekly" ? product.price * 0.95 : product.price;
+}
+
 function cartMessage(lines: CartLine[]) {
   const selected = lines
     .map((line) => {
       const product = products.find((item) => item.slug === line.slug);
-      return product ? `• ${product.name} × ${line.quantity} — ${money(product.price * line.quantity)}` : "";
+      return product ? `• ${product.name} × ${line.quantity}${line.purchaseType === "weekly" ? " (weekly)" : ""} — ${money(linePrice(product, line) * line.quantity)}` : "";
     })
     .filter(Boolean)
     .join("\n");
   const total = lines.reduce((sum, line) => {
     const product = products.find((item) => item.slug === line.slug);
-    return sum + (product?.price ?? 0) * line.quantity;
+    return sum + (product ? linePrice(product, line) : 0) * line.quantity;
   }, 0);
   return `Hello Farmose! I would like to order:\n\n${selected}\n\nSubtotal: ${money(total)}\n\nPlease confirm availability and delivery.`;
 }
@@ -45,7 +50,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (slug: strin
           />
         </a>
         <button className="quick-add" type="button" onClick={() => onAdd(product.slug)} aria-label={`Add ${product.name} to cart`}>
-          <b>＋</b>
+          <b className="plus-symbol" aria-hidden="true" />
           <span>Add</span>
         </button>
       </div>
@@ -63,30 +68,28 @@ function Header({ cartCount, onCart }: { cartCount: number; onCart: () => void }
 
   return (
     <>
-      <div className="announcement">FREE DELIVERY IN FREETOWN ON ORDERS OVER NLe 500</div>
+      <div className="announcement">FREE DELIVERY IN FREETOWN ON ORDERS OVER LE 500</div>
       <header className="site-header">
         <nav className="nav-shell" aria-label="Main navigation">
           <div className="nav-left desktop-nav">
             <button className="nav-link nav-menu-button" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen}>
               Shop <span className="nav-dot">⌄</span>
             </button>
-            <a className="nav-link" href="/#standard">Our standard</a>
+            <a className="nav-link" href="/about">Our story</a>
             <a className="nav-link" href="/#reviews">Reviews</a>
           </div>
           <button className="mobile-menu" type="button" onClick={() => setMenuOpen((value) => !value)} aria-label="Open menu">
             ☰
           </button>
-          <a className="wordmark" href="/" aria-label="Farmose home">
-            <small>FARM · TO · MARKET</small>
-            <b>FARMOSE</b>
-            <span>SIERRA LEONE</span>
+          <a className="brand-logo" href="/" aria-label="Farmose home">
+            <img src="/images/farmose-logo.png" alt="Farmose" />
           </a>
           <div className="nav-right desktop-nav">
             <a href="/wholesale">WHOLESALE</a>
             <a href="/#visit">VISIT US</a>
           </div>
           <button className="cart-button" type="button" onClick={onCart} aria-label={`Open cart with ${cartCount} items`}>
-            <span className="bag-icon">▱</span>
+            <span className="bag-icon" aria-hidden="true"><i /></span>
             <b>{cartCount}</b>
           </button>
         </nav>
@@ -104,7 +107,7 @@ function Header({ cartCount, onCart }: { cartCount: number; onCart: () => void }
           </div>
           <div>
             <p className="eyebrow">WHY FARMOSE</p>
-            <a href="/#standard">Our clean standard</a>
+            <a href="/about">Our clean standard</a>
             <a href="/wholesale">Restaurant & hotel supply</a>
             <a href="/#visit">Freetown store</a>
           </div>
@@ -137,7 +140,7 @@ function CartDrawer({
 }) {
   const subtotal = lines.reduce((sum, line) => {
     const product = products.find((item) => item.slug === line.slug);
-    return sum + (product?.price ?? 0) * line.quantity;
+    return sum + (product ? linePrice(product, line) : 0) * line.quantity;
   }, 0);
 
   useEffect(() => {
@@ -155,8 +158,8 @@ function CartDrawer({
       <aside className="cart-drawer">
         <div className="drawer-header">
           <div>
-            <p className="eyebrow">YOUR BASKET</p>
-            <h2>Farmose cart</h2>
+            <p className="eyebrow">YOUR FARMOSE BASKET</p>
+            <h2>My Cart</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Close cart">×</button>
         </div>
@@ -183,20 +186,21 @@ function CartDrawer({
                 </div>
                 <section>
                   <h3>{product.name}</h3>
-                  <p>{product.unit}</p>
+                  <p>{product.unit}{line.purchaseType === "weekly" ? " · weekly delivery" : ""}</p>
                   <div className="qty">
                     <button type="button" onClick={() => onQuantity(line.slug, line.quantity - 1)} aria-label="Decrease quantity">−</button>
                     <span>{line.quantity}</span>
                     <button type="button" onClick={() => onQuantity(line.slug, line.quantity + 1)} aria-label="Increase quantity">＋</button>
                   </div>
                 </section>
-                <b>{money(product.price * line.quantity)}</b>
+                <b>{money(linePrice(product, line) * line.quantity)}</b>
               </article>
             );
           })}
         </div>
         {lines.length > 0 && (
           <div className="drawer-footer">
+            <label className="gift-option"><input type="checkbox" /><span>Is this a gift?</span></label>
             <div className="subtotal"><span>Subtotal</span><b>{money(subtotal)}</b></div>
             <a className="button dark wide" href="/checkout">Checkout — {money(subtotal)}</a>
             <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines))} target="_blank" rel="noreferrer">
@@ -300,10 +304,13 @@ function Home({ onAdd }: { onAdd: (slug: string) => void }) {
 }
 
 function Shop({ onAdd }: { onAdd: (slug: string) => void }) {
-  const initialCategory = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("category") ?? "All" : "All";
-  const [category, setCategory] = useState(initialCategory);
+  const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const categories = ["All", "Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"];
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("category");
+    if (requested && categories.includes(requested)) setCategory(requested);
+  }, []);
   const visible = products.filter((product) =>
     (category === "All" || product.category === category) &&
     `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase()),
@@ -335,9 +342,11 @@ function Shop({ onAdd }: { onAdd: (slug: string) => void }) {
   );
 }
 
-function ProductPage({ product, onAdd }: { product: Product; onAdd: (slug: string, quantity?: number) => void }) {
+function ProductPage({ product, onAdd }: { product: Product; onAdd: (slug: string, quantity?: number, purchaseType?: PurchaseType) => void }) {
   const [quantity, setQuantity] = useState(1);
-  const message = `Hello Farmose! I would like ${quantity} × ${product.name} (${product.unit}) at ${money(product.price)} each. Please confirm availability and delivery.`;
+  const [purchaseType, setPurchaseType] = useState<"once" | "weekly">("once");
+  const selectedPrice = purchaseType === "weekly" ? product.price * 0.95 : product.price;
+  const message = `Hello Farmose! I would like ${quantity} × ${product.name} (${product.unit})${purchaseType === "weekly" ? " as a weekly delivery" : ""} at ${money(selectedPrice)} each. Please confirm availability and delivery.`;
   return (
     <main className="product-page">
       <section className="product-detail">
@@ -356,13 +365,25 @@ function ProductPage({ product, onAdd }: { product: Product; onAdd: (slug: strin
           <p className="detail-price">{money(product.price)} <span>/ {product.unit}</span></p>
           <p className="detail-description">{product.details}</p>
           <div className="availability"><i /> Available for Freetown delivery or pickup</div>
+          <div className="purchase-options" aria-label="Purchase type">
+            <label className={purchaseType === "once" ? "selected" : ""}>
+              <input type="radio" name="purchase-type" checked={purchaseType === "once"} onChange={() => setPurchaseType("once")} />
+              <span><b>One-time purchase</b><small>Order only when you need it</small></span>
+              <strong>{money(product.price)}</strong>
+            </label>
+            <label className={purchaseType === "weekly" ? "selected" : ""}>
+              <input type="radio" name="purchase-type" checked={purchaseType === "weekly"} onChange={() => setPurchaseType("weekly")} />
+              <span><b>Weekly delivery & save</b><small>Save 5% on a regular weekly order</small></span>
+              <strong>{money(product.price * 0.95)}</strong>
+            </label>
+          </div>
           <div className="purchase-row">
             <div className="qty big">
               <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity">−</button>
               <span>{quantity}</span>
               <button type="button" onClick={() => setQuantity(quantity + 1)} aria-label="Increase quantity">＋</button>
             </div>
-            <button className="button dark grow" type="button" onClick={() => onAdd(product.slug, quantity)}>Add to cart — {money(product.price * quantity)}</button>
+            <button className="button dark grow" type="button" onClick={() => onAdd(product.slug, quantity, purchaseType)}>Add to cart — {money(selectedPrice * quantity)}</button>
           </div>
           <a className="button whatsapp wide product-whatsapp" href={whatsappUrl(message)} target="_blank" rel="noreferrer">◉ Order this item via WhatsApp</a>
           <p className="microcopy">Fresh-item availability may vary. We confirm every order before delivery.</p>
@@ -392,7 +413,10 @@ function Checkout({ lines, clearCart }: { lines: CartLine[]; clearCart: () => vo
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
-  const subtotal = lines.reduce((sum, line) => sum + (products.find((item) => item.slug === line.slug)?.price ?? 0) * line.quantity, 0);
+  const subtotal = lines.reduce((sum, line) => {
+    const product = products.find((item) => item.slug === line.slug);
+    return sum + (product ? linePrice(product, line) : 0) * line.quantity;
+  }, 0);
   const deliveryFee = subtotal >= 500 ? 0 : 25;
   const total = subtotal + deliveryFee;
 
@@ -411,7 +435,7 @@ function Checkout({ lines, clearCart }: { lines: CartLine[]; clearCart: () => vo
       paymentMethod: form.get("payment"),
       items: lines.map((line) => {
         const product = products.find((item) => item.slug === line.slug)!;
-        return { slug: line.slug, name: product.name, quantity: line.quantity, price: product.price };
+        return { slug: line.slug, name: product.name, quantity: line.quantity, price: linePrice(product, line) };
       }),
       subtotal,
       deliveryFee,
@@ -479,7 +503,7 @@ function Checkout({ lines, clearCart }: { lines: CartLine[]; clearCart: () => vo
         <p className="eyebrow">ORDER SUMMARY</p>
         {lines.map((line) => {
           const product = products.find((item) => item.slug === line.slug)!;
-          return <article key={line.slug}><div style={{ background: product.color }}><img src={product.image} alt="" style={{ objectPosition: product.imagePosition }} /><b>{line.quantity}</b></div><span><strong>{product.shortName}</strong><small>{product.unit}</small></span><em>{money(product.price * line.quantity)}</em></article>;
+          return <article key={line.slug}><div style={{ background: product.color }}><img src={product.image} alt="" style={{ objectPosition: product.imagePosition }} /><b>{line.quantity}</b></div><span><strong>{product.shortName}</strong><small>{product.unit}{line.purchaseType === "weekly" ? " · weekly" : ""}</small></span><em>{money(linePrice(product, line) * line.quantity)}</em></article>;
         })}
         <hr /><p><span>Subtotal</span><b>{money(subtotal)}</b></p><p><span>Delivery</span><b>{deliveryFee === 0 ? "Free" : money(deliveryFee)}</b></p><p className="summary-total"><span>Total</span><b>{money(total)}</b></p>
       </aside>
@@ -515,18 +539,66 @@ function Wholesale() {
   );
 }
 
+function About() {
+  return (
+    <main>
+      <section className="about-hero">
+        <div>
+          <span className="sticker">OUR STORY</span>
+          <h1>Local food deserves a <em>cleaner journey.</em></h1>
+        </div>
+        <p>Farmose is a premium farm-to-market grocery and agricultural supplier built for people who love local food but do not have hours to wash, sort and process every ingredient.</p>
+      </section>
+      <section className="about-story">
+        <div className="about-image"><img src="/images/farmose-groundnut-display.webp" alt="Farmose products displayed in the Hill Station store" /></div>
+        <div className="about-copy">
+          <p className="eyebrow">FROM FARM TO FREETOWN</p>
+          <h2>The market experience, thoughtfully prepared.</h2>
+          <p>We source familiar Sierra Leonean staples, fresh seafood, local meats and seasonal produce, then handle the work that normally slows a good meal down.</p>
+          <p>Ingredients are carefully sorted, washed or processed as appropriate, and packed in a hygienic environment. The result is local food that feels dependable, premium and ready for real life.</p>
+          <a className="button dark" href="/shop">Explore the clean market</a>
+        </div>
+      </section>
+      <section className="process-section">
+        <div className="section-heading">
+          <div><p className="eyebrow">OUR CLEAN STANDARD</p><h2>Care at every handoff.</h2></div>
+        </div>
+        <div className="process-grid">
+          <article><span>01</span><h3>Source</h3><p>We choose local growers, fishers and suppliers who take freshness seriously.</p></article>
+          <article><span>02</span><h3>Sort</h3><p>Dust, sand, stones and unwanted particles are removed with careful handling.</p></article>
+          <article><span>03</span><h3>Prepare</h3><p>Seafood and poultry can be cleaned and processed to suit your kitchen.</p></article>
+          <article><span>04</span><h3>Pack</h3><p>Every order is packed neatly for pickup, home delivery or wholesale supply.</p></article>
+        </div>
+      </section>
+      <section className="visit-section" id="contact">
+        <div>
+          <p className="eyebrow">VISIT FARMOSE</p>
+          <h2>Come see what is fresh.</h2>
+          <p>1 Foday Drive, Main Regent Road<br />Hill Station, Freetown<br />Near Orange Office</p>
+        </div>
+        <div className="visit-card">
+          <p className="eyebrow">NEED HELP?</p>
+          <h3>Talk to the Farmose team.</h3>
+          <p>Ask about availability, cleaning preferences, delivery areas or a regular wholesale supply.</p>
+          <a className="button whatsapp wide" href={whatsappUrl("Hello Farmose! I would like to ask about your products and store.")} target="_blank" rel="noreferrer">Open WhatsApp</a>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function Footer() {
   return (
     <footer className="site-footer" id="visit">
       <div className="footer-top">
-        <a className="wordmark inverse" href="/"><small>FARM · TO · MARKET</small><b>FARMOSE</b><span>SIERRA LEONE</span></a>
+        <a className="brand-logo footer-logo" href="/" aria-label="Farmose home"><img src="/images/farmose-logo.png" alt="Farmose" /></a>
         <h2>Good food starts <em>clean.</em></h2>
         <a className="button light" href="/shop">Shop Farmose</a>
       </div>
       <div className="footer-grid">
         <div><p className="eyebrow">VISIT</p><p>1 Foday Drive, Main Regent Road<br />Hill Station, Freetown<br /><small>Near Orange Office</small></p></div>
         <div><p className="eyebrow">SHOP</p><a href="/shop">All produce</a><a href="/shop?category=Pantry">Pantry</a><a href="/shop?category=Fresh%20Seafood">Seafood</a></div>
-        <div><p className="eyebrow">BUSINESS</p><a href="/wholesale">Wholesale supply</a><a href={whatsappUrl("Hello Farmose! I have a question about your products.")} target="_blank" rel="noreferrer">WhatsApp us</a></div>
+        <div><p className="eyebrow">BUSINESS</p><a href="/wholesale">Wholesale supply</a><a href="/about">About & contact</a><a href={whatsappUrl("Hello Farmose! I have a question about your products.")} target="_blank" rel="noreferrer">WhatsApp us</a></div>
         <div><p className="eyebrow">THE FARM NOTE</p><p>Seasonal produce, kitchen tips and what’s fresh.</p><form onSubmit={(event) => event.preventDefault()}><input type="email" aria-label="Email address" placeholder="Your email address" /><button type="submit" aria-label="Subscribe">→</button></form></div>
       </div>
       <div className="footer-bottom"><span>© {new Date().getFullYear()} Farmose Sierra Leone</span><span>Clean local food, thoughtfully prepared.</span></div>
@@ -548,10 +620,10 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
   }, [lines]);
 
   const count = useMemo(() => lines.reduce((sum, line) => sum + line.quantity, 0), [lines]);
-  function add(slugToAdd: string, quantity = 1) {
+  function add(slugToAdd: string, quantity = 1, purchaseType: PurchaseType = "once") {
     setLines((current) => {
       const existing = current.find((line) => line.slug === slugToAdd);
-      return existing ? current.map((line) => line.slug === slugToAdd ? { ...line, quantity: line.quantity + quantity } : line) : [...current, { slug: slugToAdd, quantity }];
+      return existing ? current.map((line) => line.slug === slugToAdd ? { ...line, quantity: line.quantity + quantity, purchaseType } : line) : [...current, { slug: slugToAdd, quantity, purchaseType }];
     });
     setCartOpen(true);
   }
@@ -567,6 +639,7 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
       {view === "product" && <ProductPage product={product} onAdd={add} />}
       {view === "checkout" && <Checkout lines={lines} clearCart={() => setLines([])} />}
       {view === "wholesale" && <Wholesale />}
+      {view === "about" && <About />}
       <Footer />
       <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} />
       <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp">◉<span>WhatsApp</span></a>
