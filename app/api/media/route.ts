@@ -13,7 +13,7 @@ type AssetBucket = { get: (key: string, options?: { range?: Headers }) => Promis
 export async function GET(request: Request) {
   const key = new URL(request.url).searchParams.get("key") ?? "";
   if (!key.startsWith("farmose/")) return new Response("Not found", { status: 404 });
-  const bucket = (env as unknown as { ASSETS?: AssetBucket }).ASSETS;
+  const bucket = (env as unknown as { MEDIA?: AssetBucket }).MEDIA;
   const rangeRequested = request.headers.has("Range");
   const asset = await bucket?.get(key, rangeRequested ? { range: request.headers } : undefined);
   if (!asset) return new Response("Not found", { status: 404 });

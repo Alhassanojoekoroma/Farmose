@@ -198,8 +198,10 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
         for (let index = 0; index < total; index += 1) {
           const query = new URLSearchParams({ uploadId, index: String(index), total: String(total), name: file.name, type: file.type, size: String(file.size) });
           const response = await fetch(`/api/admin/upload?${query}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)) });
-          const result = (await response.json()) as Partial<MediaAsset> & { error?: string };
-          if (!response.ok) throw new Error(result.error || `The ${kind} could not be uploaded.`);
+          const body = await response.text();
+          let result: Partial<MediaAsset> & { error?: string } = {};
+          try { result = JSON.parse(body) as Partial<MediaAsset> & { error?: string }; } catch { /* Surface a readable error below. */ }
+          if (!response.ok) throw new Error(result.error || `The ${kind} upload failed (${response.status}). Please try again.`);
           if (result.url && result.key) uploadedAsset = { key: result.key, url: result.url, kind, size: result.size ?? file.size, uploaded: new Date().toISOString() };
           setUploadProgress(Math.round((((fileIndex * total) + index + 1) / (files.length * total)) * 100));
         }

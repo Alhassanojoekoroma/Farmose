@@ -54,7 +54,7 @@ test("the private admin workspace and managed catalog are configured", async () 
     readFile(new URL("drizzle/0001_exotic_scarecrow.sql", root), "utf8"),
     readFile(new URL("drizzle/0002_lazy_pepper_potts.sql", root), "utf8"),
   ]);
-  assert.match(hosting, /"r2": "ASSETS"/);
+  assert.match(hosting, /"r2": "MEDIA"/);
   assert.match(adminPage, /requireChatGPTUser/);
   assert.match(adminPage, /isAdminEmail/);
   assert.match(adminAuth, /FARMOSE_ADMIN_EMAILS/);

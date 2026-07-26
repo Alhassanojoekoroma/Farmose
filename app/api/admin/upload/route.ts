@@ -20,6 +20,8 @@ export async function POST(request: Request) {
   const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
 
+  try {
+
   const url = new URL(request.url);
   const uploadId = url.searchParams.get("uploadId") ?? "";
   const index = Number(url.searchParams.get("index"));
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
     return uploadError("Each upload part must be smaller than 600 KB.", 413);
   }
 
-  const bucket = (env as unknown as { ASSETS?: AssetBucket }).ASSETS;
+  const bucket = (env as unknown as { MEDIA?: AssetBucket }).MEDIA;
   if (!bucket) return uploadError("Media storage is not available.", 503);
 
   const temporaryPrefix = `farmose-temp/${uploadId}`;
@@ -81,5 +83,10 @@ export async function POST(request: Request) {
   await bucket.put(key, combined, { httpMetadata: { contentType } });
   await bucket.delete(chunkKeys);
 
-  return Response.json({ key, url: `/api/media?key=${encodeURIComponent(key)}`, kind: contentType.startsWith("video/") ? "video" : "image", size: combinedSize }, { status: 201 });
+    return Response.json({ key, url: `/api/media?key=${encodeURIComponent(key)}`, kind: contentType.startsWith("video/") ? "video" : "image", size: combinedSize }, { status: 201 });
+  } catch (reason) {
+    const message = reason instanceof Error ? reason.message : "An unknown storage error occurred.";
+    console.error("Farmose media upload failed", reason);
+    return uploadError(`The upload could not be stored: ${message}`, 500);
+  }
 }
