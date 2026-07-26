@@ -22,7 +22,15 @@ type AdminPayload = {
   orders: AdminOrder[];
 };
 
-type Tab = "products" | "appearance" | "orders";
+type Tab = "products" | "appearance" | "media" | "orders";
+
+type MediaAsset = {
+  key: string;
+  url: string;
+  kind: "image" | "video";
+  size: number;
+  uploaded: string;
+};
 
 const blankProduct = (sortOrder: number): ManagedProduct => ({
   slug: "",
@@ -52,6 +60,7 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
   const [products, setProducts] = useState<ManagedProduct[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [media, setMedia] = useState<MediaAsset[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [draft, setDraft] = useState<ManagedProduct>(blankProduct(0));
   const [loading, setLoading] = useState(true);
@@ -82,8 +91,20 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
     }
   }
 
+  async function loadMedia() {
+    try {
+      const response = await fetch("/api/admin/media", { cache: "no-store" });
+      const result = (await response.json()) as { media?: MediaAsset[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Your media library could not be loaded.");
+      setMedia(result.media ?? []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Your media library could not be loaded.");
+    }
+  }
+
   useEffect(() => {
     void load();
+    void loadMedia();
   }, []);
 
   const activeCount = useMemo(() => products.filter((product) => product.active).length, [products]);
@@ -149,18 +170,17 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
 
   async function uploadMedia(event: ChangeEvent<HTMLInputElement>, kind: "image" | "video") {
     const input = event.currentTarget;
-    const file = input.files?.[0];
-    if (!file) return;
-    const typeIsValid = kind === "image" ? file.type.startsWith("image/") : file.type.startsWith("video/");
+    const files = Array.from(input.files ?? []);
+    input.value = "";
+    if (!files.length) return;
+    const invalidFile = files.find((file) => !(kind === "image" ? file.type.startsWith("image/") : file.type.startsWith("video/")));
     const maxBytes = (kind === "image" ? 12 : 40) * 1024 * 1024;
-    if (!typeIsValid) {
+    if (invalidFile) {
       setError(`Choose a ${kind} file.`);
-      input.value = "";
       return;
     }
-    if (file.size > maxBytes) {
+    if (files.some((file) => file.size > maxBytes)) {
       setError(`${kind === "image" ? "Images" : "Videos"} must be smaller than ${kind === "image" ? "12" : "40"} MB.`);
-      input.value = "";
       return;
     }
 
@@ -168,40 +188,32 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
     setUploadProgress(0);
     setError("");
     try {
-      const chunkSize = 512 * 1024;
-      const total = Math.max(1, Math.ceil(file.size / chunkSize));
-      const uploadId = crypto.randomUUID();
-      let uploadedUrl = "";
-
-      for (let index = 0; index < total; index += 1) {
-        const query = new URLSearchParams({
-          uploadId,
-          index: String(index),
-          total: String(total),
-          name: file.name,
-          type: file.type,
-          size: String(file.size),
-        });
-        const response = await fetch(`/api/admin/upload?${query}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)),
-        });
-        const result = (await response.json()) as { url?: string; error?: string };
-        if (!response.ok) throw new Error(result.error || `The ${kind} could not be uploaded.`);
-        if (result.url) uploadedUrl = result.url;
-        setUploadProgress(Math.round(((index + 1) / total) * 100));
+      const uploaded: MediaAsset[] = [];
+      for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+        const file = files[fileIndex];
+        const chunkSize = 512 * 1024;
+        const total = Math.max(1, Math.ceil(file.size / chunkSize));
+        const uploadId = crypto.randomUUID();
+        let uploadedAsset: MediaAsset | null = null;
+        for (let index = 0; index < total; index += 1) {
+          const query = new URLSearchParams({ uploadId, index: String(index), total: String(total), name: file.name, type: file.type, size: String(file.size) });
+          const response = await fetch(`/api/admin/upload?${query}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize)) });
+          const result = (await response.json()) as Partial<MediaAsset> & { error?: string };
+          if (!response.ok) throw new Error(result.error || `The ${kind} could not be uploaded.`);
+          if (result.url && result.key) uploadedAsset = { key: result.key, url: result.url, kind, size: result.size ?? file.size, uploaded: new Date().toISOString() };
+          setUploadProgress(Math.round((((fileIndex * total) + index + 1) / (files.length * total)) * 100));
+        }
+        if (!uploadedAsset) throw new Error(`The ${kind} upload did not finish.`);
+        uploaded.push(uploadedAsset);
       }
-
-      if (!uploadedUrl) throw new Error(`The ${kind} upload did not finish.`);
-      updateDraft(kind, uploadedUrl);
-      setNotice(`${kind === "image" ? "Image" : "Video"} uploaded. Save the product to publish it.`);
+      if (uploaded[0]) updateDraft(kind, uploaded[0].url);
+      setMedia((current) => [...uploaded, ...current]);
+      setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added. The first file is selected for this product — save product to publish it.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : `The ${kind} could not be uploaded.`);
     } finally {
       setUploading(null);
       setUploadProgress(0);
-      input.value = "";
     }
   }
 
@@ -252,13 +264,14 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
           <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>
           <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Appearance</button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>
+          <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>
         </nav>
         <div className="admin-account"><small>Signed in as</small><strong>{adminName}</strong><a href={signOutPath}>Sign out</a></div>
       </aside>
 
       <section className="admin-workspace">
         <header className="admin-topbar">
-          <div><p>FARMOSE ADMINISTRATION</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront appearance" : "Customer orders"}</h1></div>
+          <div><p>FARMOSE ADMINISTRATION</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront appearance" : tab === "media" ? "Media library" : "Customer orders"}</h1></div>
           <a href="/" target="_blank" rel="noreferrer">View live store ↗</a>
         </header>
         {(notice || error) && <div className={`admin-message ${error ? "error" : ""}`}>{error || notice}</div>}
@@ -293,8 +306,15 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
               <label className="admin-field"><span>Short card description</span><textarea required rows={3} value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} /></label>
               <label className="admin-field"><span>Product page description</span><textarea required rows={4} value={draft.details} onChange={(event) => updateDraft("details", event.target.value)} /></label>
               <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>Feature {index + 1}</span><input value={draft.features[index] || ""} onChange={(event) => updateDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
-              <div className="admin-upload"><div><strong>Product image</strong><small>JPG, PNG or WebP up to 12 MB. Large files upload in safe, smaller parts.</small></div><label><input type="file" accept="image/*" onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Upload new image"}</label><input aria-label="Product image URL" value={draft.image} onChange={(event) => updateDraft("image", event.target.value)} /></div>
-              <div className="admin-upload"><div><strong>Product video</strong><small>MP4 or WebM up to 40 MB. It appears in a compact player on the product page.</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Upload product video"}</label><input aria-label="Product video URL" value={draft.video ?? ""} onChange={(event) => updateDraft("video", event.target.value)} placeholder="Optional video URL" /></div>
+              <div className="admin-upload"><div><strong>Product photos</strong><small>Select one or several images directly from this device. Files up to 12 MB are uploaded safely in small parts.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose photos from device"}</label></div>
+              <div className="admin-upload"><div><strong>Product video</strong><small>Choose an MP4 or WebM directly from this device (up to 40 MB).</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Choose video from device"}</label>{draft.video && <button type="button" className="admin-clear-media" onClick={() => updateDraft("video", "")}>Remove selected video</button>}</div>
+              <section className="admin-media-picker" aria-label="Product media library">
+                <div className="admin-section-title"><div><p>YOUR MEDIA LIBRARY</p><h2>Choose the product photo</h2><small>Click any image to use it for this product. No image URLs are needed.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh</button></div>
+                <div className="admin-media-grid compact">
+                  {media.filter((asset) => asset.kind === "image").map((asset) => <button className={draft.image === asset.url ? "selected" : ""} type="button" key={asset.key} onClick={() => { updateDraft("image", asset.url); setNotice("Photo selected. Save product to publish it."); }}><img src={asset.url} alt="Uploaded product option" /><span>{draft.image === asset.url ? "Selected" : "Use this photo"}</span></button>)}
+                  {!media.some((asset) => asset.kind === "image") && <p className="admin-library-empty">Upload photos above and they will stay here for every product.</p>}
+                </div>
+              </section>
               <div className="admin-actions">{selectedSlug && <button className="danger" type="button" onClick={removeProduct}>Delete product</button>}<button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save product"}</button></div>
             </form>
           </div>
@@ -320,6 +340,11 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
               <label className="admin-field"><span>Emphasised words</span><input value={theme.heroEmphasis} onChange={(event) => setTheme({ ...theme, heroEmphasis: event.target.value })} /></label>
               <label className="admin-field"><span>Hero supporting text</span><textarea rows={4} value={theme.heroBody} onChange={(event) => setTheme({ ...theme, heroBody: event.target.value })} /></label>
               <label className="admin-field"><span>Hero image URL</span><input value={theme.heroImage} onChange={(event) => setTheme({ ...theme, heroImage: event.target.value })} /></label>
+              <div className="admin-section-title copy-title"><div><p>VISIT & CONTACT</p><h2>Store information</h2></div></div>
+              <label className="admin-field"><span>Store address</span><input value={theme.storeAddress} onChange={(event) => setTheme({ ...theme, storeAddress: event.target.value })} /></label>
+              <label className="admin-field"><span>Landmark</span><input value={theme.storeLandmark} onChange={(event) => setTheme({ ...theme, storeLandmark: event.target.value })} /></label>
+              <label className="admin-field"><span>Opening hours / visitor note</span><input value={theme.storeHours} onChange={(event) => setTheme({ ...theme, storeHours: event.target.value })} /></label>
+              <label className="admin-field"><span>Directions link</span><input type="url" value={theme.directionsUrl} onChange={(event) => setTheme({ ...theme, directionsUrl: event.target.value })} /></label>
               <div className="admin-actions"><button type="button" onClick={() => setTheme(defaultTheme)}>Reset draft</button><button className="primary" type="submit" disabled={saving}>{saving ? "Publishing…" : "Publish appearance"}</button></div>
             </section>
             <aside className="appearance-preview" style={{ background: theme.highlightColor, fontFamily: theme.bodyFont, fontSize: theme.baseFontSize }}>
@@ -328,6 +353,16 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
               <img className="appearance-preview-image" src={theme.heroImage} alt="" />
             </aside>
           </form>
+        )}
+
+        {!loading && tab === "media" && (
+          <section className="admin-media-library">
+            <div className="admin-section-title"><div><p>ASSET LIBRARY</p><h2>Photos & videos</h2><small>Upload files on a product, then reuse them for any product from its editor.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh library</button></div>
+            <div className="admin-media-grid">
+              {media.map((asset) => <article key={asset.key}>{asset.kind === "video" ? <video controls preload="metadata" src={asset.url} /> : <img src={asset.url} alt="Farmose media asset" />}<span>{asset.kind === "video" ? "Video" : "Photo"} · {Math.max(1, Math.round(asset.size / 1024))} KB</span></article>)}
+              {!media.length && <p className="admin-library-empty">No uploaded media yet. Open a product and select files from your device.</p>}
+            </div>
+          </section>
         )}
 
         {!loading && tab === "orders" && (

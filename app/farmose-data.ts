@@ -32,6 +32,10 @@ export type SiteTheme = {
   heroEmphasis: string;
   heroBody: string;
   heroImage: string;
+  storeAddress: string;
+  storeLandmark: string;
+  storeHours: string;
+  directionsUrl: string;
 };
 
 export const defaultTheme: SiteTheme = {
@@ -50,6 +54,10 @@ export const defaultTheme: SiteTheme = {
   heroBody:
     "Premium Sierra Leonean ingredients, carefully washed, processed and packed to save you time without losing the local flavour you love.",
   heroImage: "/images/farmose-peppers.webp",
+  storeAddress: "1 Foday Drive, Main Regent Road, Hill Station, Freetown",
+  storeLandmark: "Near Orange Office",
+  storeHours: "Contact us on WhatsApp for today’s opening hours.",
+  directionsUrl: "https://www.google.com/maps/search/?api=1&query=1%20Foday%20Drive%2C%20Main%20Regent%20Road%2C%20Hill%20Station%2C%20Freetown%2C%20Sierra%20Leone",
 };
 
 export const products: Product[] = [

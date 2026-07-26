@@ -41,12 +41,13 @@ test("durable order storage is configured with a migration", async () => {
 });
 
 test("the private admin workspace and managed catalog are configured", async () => {
-  const [hosting, adminPage, adminAuth, adminApi, uploadApi, panel, storefront, css, migration, mediaMigration] = await Promise.all([
+  const [hosting, adminPage, adminAuth, adminApi, uploadApi, mediaApi, panel, storefront, css, migration, mediaMigration] = await Promise.all([
     readFile(new URL(".openai/hosting.json", root), "utf8"),
     readFile(new URL("app/admin/page.tsx", root), "utf8"),
     readFile(new URL("app/admin-auth.ts", root), "utf8"),
     readFile(new URL("app/api/admin/catalog/route.ts", root), "utf8"),
     readFile(new URL("app/api/admin/upload/route.ts", root), "utf8"),
+    readFile(new URL("app/api/admin/media/route.ts", root), "utf8"),
     readFile(new URL("app/components/AdminPanel.tsx", root), "utf8"),
     readFile(new URL("app/components/FarmoseSite.tsx", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
@@ -62,12 +63,15 @@ test("the private admin workspace and managed catalog are configured", async () 
   assert.match(uploadApi, /MAX_CHUNK_BYTES/);
   assert.match(panel, /Save product/);
   assert.match(panel, /Publish appearance/);
-  assert.match(panel, /Upload product video/);
+  assert.match(panel, /Choose video from device/);
+  assert.match(panel, /YOUR MEDIA LIBRARY/);
+  assert.match(panel, /multiple/);
+  assert.match(mediaApi, /bucket\.list/);
   assert.match(storefront, /product-video-block/);
   assert.match(storefront, /FaWhatsapp/);
   assert.match(css, /\.top-navigation \{ position: sticky/);
   assert.match(css, /repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(css, /width: min\(450px/);
+  assert.match(css, /width: min\(430px/);
   assert.match(migration, /CREATE TABLE `catalog_products`/);
   assert.match(migration, /CREATE TABLE `site_settings`/);
   assert.match(mediaMigration, /ADD `video` text/);

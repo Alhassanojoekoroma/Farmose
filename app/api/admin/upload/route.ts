@@ -81,5 +81,5 @@ export async function POST(request: Request) {
   await bucket.put(key, combined, { httpMetadata: { contentType } });
   await bucket.delete(chunkKeys);
 
-  return Response.json({ url: `/api/media?key=${encodeURIComponent(key)}` }, { status: 201 });
+  return Response.json({ key, url: `/api/media?key=${encodeURIComponent(key)}`, kind: contentType.startsWith("video/") ? "video" : "image", size: combinedSize }, { status: 201 });
 }

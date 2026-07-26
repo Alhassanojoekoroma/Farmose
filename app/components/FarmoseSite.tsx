@@ -551,7 +551,7 @@ function Wholesale() {
   );
 }
 
-function About() {
+function About({ theme }: { theme: SiteTheme }) {
   return (
     <main>
       <section className="about-hero">
@@ -586,7 +586,8 @@ function About() {
         <div>
           <p className="eyebrow">VISIT FARMOSE</p>
           <h2>Come see what is fresh.</h2>
-          <p>1 Foday Drive, Main Regent Road<br />Hill Station, Freetown<br />Near Orange Office</p>
+          <p>{theme.storeAddress}<br /><small>{theme.storeLandmark}</small><br /><small>{theme.storeHours}</small></p>
+          <a className="text-link directions-link" href={theme.directionsUrl} target="_blank" rel="noreferrer">Open directions ↗</a>
         </div>
         <div className="visit-card">
           <p className="eyebrow">NEED HELP?</p>
@@ -599,7 +600,7 @@ function About() {
   );
 }
 
-function Footer() {
+function Footer({ theme }: { theme: SiteTheme }) {
   return (
     <footer className="site-footer" id="visit">
       <div className="footer-top">
@@ -608,7 +609,7 @@ function Footer() {
         <a className="button light" href="/shop">Shop Farmose</a>
       </div>
       <div className="footer-grid">
-        <div><p className="eyebrow">VISIT</p><p>1 Foday Drive, Main Regent Road<br />Hill Station, Freetown<br /><small>Near Orange Office</small></p></div>
+        <div><p className="eyebrow">VISIT</p><p>{theme.storeAddress}<br /><small>{theme.storeLandmark}</small><br /><small>{theme.storeHours}</small></p><a href={theme.directionsUrl} target="_blank" rel="noreferrer">Open directions ↗</a></div>
         <div><p className="eyebrow">SHOP</p><a href="/shop">All produce</a><a href="/shop?category=Pantry">Pantry</a><a href="/shop?category=Fresh%20Seafood">Seafood</a></div>
         <div><p className="eyebrow">BUSINESS</p><a href="/wholesale">Wholesale supply</a><a href="/about">About & contact</a><a href={whatsappUrl("Hello Farmose! I have a question about your products.")} target="_blank" rel="noreferrer">WhatsApp us</a></div>
         <div><p className="eyebrow">THE FARM NOTE</p><p>Seasonal produce, kitchen tips and what’s fresh.</p><form onSubmit={(event) => event.preventDefault()}><input type="email" aria-label="Email address" placeholder="Your email address" /><button type="submit" aria-label="Subscribe">→</button></form></div>
@@ -678,8 +679,8 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
       {view === "product" && <ProductPage product={product} products={products} onAdd={add} />}
       {view === "checkout" && <Checkout lines={lines} clearCart={() => setLines([])} products={products} />}
       {view === "wholesale" && <Wholesale />}
-      {view === "about" && <About />}
-      <Footer />
+      {view === "about" && <About theme={theme} />}
+      <Footer theme={theme} />
       <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
       <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /><span>WhatsApp</span></a>
     </div>
