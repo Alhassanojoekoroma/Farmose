@@ -7,6 +7,10 @@ export type Product = {
   price: number;
   unit: string;
   image: string;
+  imageUrl?: string;
+  imagePublicId?: string;
+  additionalImages?: string[];
+  stockQuantity?: number;
   video?: string;
   imagePosition?: string;
   color: string;

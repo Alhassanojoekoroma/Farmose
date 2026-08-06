@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { requireAdminApi } from "../../../admin-auth";
 import {
   deleteManagedProduct,
@@ -10,7 +10,9 @@ import {
 } from "../../../catalog-server";
 import { SiteTheme } from "../../../farmose-data";
 import { getDb } from "../../../../db";
-import { orders } from "../../../../db/schema";
+import { catalogProducts, orders } from "../../../../db/schema";
+import { deleteProductImage } from "../../../../lib/cloudinary";
+import { deleteProductFromSupabase, saveProductToSupabase } from "../../../../lib/supabase-products";
 
 export const dynamic = "force-dynamic";
 
@@ -52,15 +54,39 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Enter a valid product price." }, { status: 400 });
   }
 
-  await saveManagedProduct({
-    ...product,
-    price: Number(product.price),
-    rating: Number(product.rating) || 5,
-    reviews: Number(product.reviews) || 0,
-    sortOrder: Number(product.sortOrder) || 0,
-    features: product.features.filter(Boolean).slice(0, 3),
-  });
-  return Response.json({ ok: true });
+  try {
+    await saveManagedProduct({
+      ...product,
+      price: Number(product.price),
+      rating: Number(product.rating) || 5,
+      reviews: Number(product.reviews) || 0,
+      sortOrder: Number(product.sortOrder) || 0,
+      features: product.features.filter(Boolean).slice(0, 3),
+    });
+    await saveProductToSupabase({
+      slug: product.slug,
+      name: product.name,
+      short_name: product.shortName,
+      shortName: product.shortName,
+      category: product.category,
+      tag: product.tag,
+      price: Number(product.price),
+      unit: product.unit,
+      image_url: product.image,
+      image_public_id: product.imagePublicId ?? null,
+      additional_images: (product.additionalImages ?? []).map((url) => ({ url, publicId: "" })),
+      stock_quantity: product.stockQuantity ?? 0,
+      description: product.description,
+      details: product.details,
+      features: product.features.filter(Boolean).slice(0, 3),
+      active: product.active,
+      sort_order: Number(product.sortOrder) || 0,
+    });
+    return Response.json({ ok: true });
+  } catch (error) {
+    console.error("Catalog product save failed", error);
+    return Response.json({ error: "The product could not be saved to the datastore." }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -68,6 +94,21 @@ export async function DELETE(request: Request) {
   if (auth instanceof Response) return auth;
   const slug = new URL(request.url).searchParams.get("slug") ?? "";
   if (!slug) return Response.json({ error: "A product slug is required." }, { status: 400 });
-  await deleteManagedProduct(slug);
-  return Response.json({ ok: true });
+  try {
+    const existing = await getDb().select({ imagePublicId: catalogProducts.imagePublicId }).from(catalogProducts).where(eq(catalogProducts.slug, slug)).limit(1);
+    await deleteManagedProduct(slug);
+    await deleteProductFromSupabase(slug);
+    const publicId = existing[0]?.imagePublicId;
+    if (publicId) {
+      try {
+        await deleteProductImage(publicId);
+      } catch (error) {
+        console.error("Cloudinary cleanup failed", error);
+      }
+    }
+    return Response.json({ ok: true });
+  } catch (error) {
+    console.error("Catalog product delete failed", error);
+    return Response.json({ error: "The product could not be deleted." }, { status: 500 });
+  }
 }

@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import { env } from "cloudflare:workers";
+import { env } from "../lib/cloudflare-env";
 import { getDb } from "../db";
 import { catalogProducts, siteSettings } from "../db/schema";
 import {
@@ -18,6 +18,7 @@ type ProductRow = typeof catalogProducts.$inferSelect;
 
 async function ensureCatalogTables() {
   const d1 = env.DB;
+  if (!d1) return;
   await d1.batch([
     d1.prepare(`CREATE TABLE IF NOT EXISTS catalog_products (
       slug text PRIMARY KEY NOT NULL,
@@ -28,6 +29,10 @@ async function ensureCatalogTables() {
       price real NOT NULL,
       unit text NOT NULL,
       image text NOT NULL,
+      image_url text,
+      image_public_id text,
+      additional_images_json text DEFAULT '[]' NOT NULL,
+      stock_quantity integer DEFAULT 0 NOT NULL,
       video text DEFAULT '' NOT NULL,
       image_position text DEFAULT 'center' NOT NULL,
       color text NOT NULL,
@@ -75,6 +80,16 @@ function rowToProduct(row: ProductRow): ManagedProduct {
     price: row.price,
     unit: row.unit,
     image: row.image,
+    imageUrl: row.imageUrl ?? row.image,
+    imagePublicId: row.imagePublicId ?? undefined,
+    additionalImages: (() => {
+      try {
+        return JSON.parse(row.additionalImagesJson ?? "[]") as string[];
+      } catch {
+        return [];
+      }
+    })(),
+    stockQuantity: row.stockQuantity ?? 0,
     video: row.video,
     imagePosition: row.imagePosition,
     color: row.color,
@@ -94,17 +109,16 @@ export async function ensureCatalogSeeded() {
   const existing = await db.select({ slug: catalogProducts.slug }).from(catalogProducts).limit(1);
   if (existing.length > 0) return;
 
-  await db.batch(
-    fallbackProducts.map((product, index) =>
-      db.insert(catalogProducts).values({
-        ...product,
-        imagePosition: product.imagePosition ?? "center",
-        featuresJson: JSON.stringify(product.features),
-        active: true,
-        sortOrder: index,
-      }),
-    ),
+  const seedStatements = fallbackProducts.map((product, index) =>
+    db.insert(catalogProducts).values({
+      ...product,
+      imagePosition: product.imagePosition ?? "center",
+      featuresJson: JSON.stringify(product.features),
+      active: true,
+      sortOrder: index,
+    }),
   );
+  await Promise.all(seedStatements.map((statement) => statement));
 }
 
 export async function readManagedProducts(includeInactive = false): Promise<ManagedProduct[]> {
@@ -135,17 +149,16 @@ export async function readSiteTheme(): Promise<SiteTheme> {
 export async function saveSiteTheme(theme: SiteTheme) {
   const db = getDb();
   const entries = Object.entries(theme);
-  await db.batch(
-    entries.map(([key, value]) =>
-      db
-        .insert(siteSettings)
-        .values({ key, value: String(value), updatedAt: new Date().toISOString() })
-        .onConflictDoUpdate({
-          target: siteSettings.key,
-          set: { value: String(value), updatedAt: new Date().toISOString() },
-        }),
-    ),
+  const seedStatements = entries.map(([key, value]) =>
+    db
+      .insert(siteSettings)
+      .values({ key, value: String(value), updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: siteSettings.key,
+        set: { value: String(value), updatedAt: new Date().toISOString() },
+      }),
   );
+  await Promise.all(seedStatements.map((statement) => statement));
 }
 
 export async function saveManagedProduct(product: ManagedProduct) {
@@ -161,6 +174,10 @@ export async function saveManagedProduct(product: ManagedProduct) {
       price: product.price,
       unit: product.unit,
       image: product.image,
+      imageUrl: product.imageUrl ?? product.image,
+      imagePublicId: product.imagePublicId ?? null,
+      additionalImagesJson: JSON.stringify(product.additionalImages ?? []),
+      stockQuantity: product.stockQuantity ?? 0,
       video: product.video ?? "",
       imagePosition: product.imagePosition ?? "center",
       color: product.color,
@@ -183,6 +200,10 @@ export async function saveManagedProduct(product: ManagedProduct) {
         price: product.price,
         unit: product.unit,
         image: product.image,
+        imageUrl: product.imageUrl ?? product.image,
+        imagePublicId: product.imagePublicId ?? null,
+        additionalImagesJson: JSON.stringify(product.additionalImages ?? []),
+        stockQuantity: product.stockQuantity ?? 0,
         video: product.video ?? "",
         imagePosition: product.imagePosition ?? "center",
         color: product.color,

@@ -626,6 +626,8 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
   const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
   const product = products.find((item) => item.slug === slug) ?? products[0] ?? fallbackProducts[0];
 
+  const safeLines = Array.isArray(lines) ? lines : [];
+
   useEffect(() => {
     let active = true;
     fetch("/api/catalog")
@@ -640,14 +642,21 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
   }, []);
 
   useEffect(() => {
-    try { setLines(JSON.parse(localStorage.getItem("farmose-cart") ?? "[]")); } catch { setLines([]); }
+    try {
+      if (typeof window === "undefined") return;
+      const stored = window.localStorage.getItem("farmose-cart");
+      if (stored) setLines(JSON.parse(stored));
+    } catch {
+      setLines([]);
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("farmose-cart", JSON.stringify(lines));
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("farmose-cart", JSON.stringify(lines));
   }, [lines]);
 
-  const count = useMemo(() => lines.reduce((sum, line) => sum + line.quantity, 0), [lines]);
+  const count = useMemo(() => safeLines.reduce((sum, line) => sum + line.quantity, 0), [safeLines]);
   function add(slugToAdd: string, quantity = 1, purchaseType: PurchaseType = "once") {
     setLines((current) => {
       const existing = current.find((line) => line.slug === slugToAdd);
@@ -677,11 +686,11 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
       {view === "home" && <Home onAdd={add} products={products} theme={theme} />}
       {view === "shop" && <Shop onAdd={add} products={products} />}
       {view === "product" && <ProductPage product={product} products={products} onAdd={add} />}
-      {view === "checkout" && <Checkout lines={lines} clearCart={() => setLines([])} products={products} />}
+      {view === "checkout" && <Checkout lines={safeLines} clearCart={() => setLines([])} products={products} />}
       {view === "wholesale" && <Wholesale />}
       {view === "about" && <About theme={theme} />}
       <Footer theme={theme} />
-      <CartDrawer open={cartOpen} lines={lines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
+      <CartDrawer open={cartOpen} lines={safeLines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
       <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /><span>WhatsApp</span></a>
     </div>
   );

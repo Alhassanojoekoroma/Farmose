@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "../lib/cloudflare-env";
 import { getChatGPTUser, ChatGPTUser } from "./chatgpt-auth";
 
 function configuredAdminEmails() {

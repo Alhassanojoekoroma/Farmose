@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "../../../../lib/cloudflare-env";
 import { requireAdminApi } from "../../../admin-auth";
 
 type AssetObject = {
