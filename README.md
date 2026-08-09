@@ -92,22 +92,11 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm test`: build the starter and verify its rendered loading skeleton
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
-## Vercel Environment Variables
+## Hosting and data
 
-To make the admin product image upload flow work end to end in Vercel, add these values in Vercel Dashboard > Project > Settings > Environment Variables:
+The production site runs as a Cloudflare Worker through OpenAI Sites. Products, content settings, staff roles and orders live in Cloudflare D1; uploaded images and video live in Cloudflare R2. `FARMOSE_ADMIN_EMAILS` defines the owner account, while additional staff and their roles are managed from `/admin`.
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
-
-Use the same values for Production, Preview, and Development if you want local and deployed environments to behave the same way. The `NEXT_PUBLIC_` variables are exposed to the browser, while the Supabase service-role key and Cloudinary secret must remain server-only.
-
-After saving the variables, trigger a new Vercel deployment so the serverless routes can pick them up.
-
-If Supabase is new, make sure the `products` table exists with the columns used by the admin route (for example `slug`, `name`, `short_name`, `category`, `tag`, `price`, `unit`, `image_url`, `image_public_id`, `additional_images`, `stock_quantity`, `description`, `details`, `features`, `active`, `sort_order`, `created_at`, `updated_at`).
+To move to Vercel or another provider, keep the Next.js UI and route handlers, then replace the D1 adapter in `db/index.ts`, the R2 calls in the media routes, and the Sites-provided ChatGPT identity headers. Export D1 and R2 before cutover, recreate the environment secret, run the SQL migrations, and test product editing, uploads, checkout and staff access before changing DNS.
 
 ## Learn More
 
