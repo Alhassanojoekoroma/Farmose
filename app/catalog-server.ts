@@ -19,8 +19,9 @@ type ProductRow = typeof catalogProducts.$inferSelect;
 async function ensureCatalogTables() {
   const d1 = env.DB;
   if (!d1) return;
-  await d1.batch([
-    d1.prepare(`CREATE TABLE IF NOT EXISTS catalog_products (
+  const database = d1;
+  await database.batch([
+    database.prepare(`CREATE TABLE IF NOT EXISTS catalog_products (
       slug text PRIMARY KEY NOT NULL,
       name text NOT NULL,
       short_name text NOT NULL,
@@ -45,22 +46,29 @@ async function ensureCatalogTables() {
       sort_order integer DEFAULT 0 NOT NULL,
       updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
-    d1.prepare(`CREATE TABLE IF NOT EXISTS site_settings (
+    database.prepare(`CREATE TABLE IF NOT EXISTS site_settings (
       key text PRIMARY KEY NOT NULL,
       value text NOT NULL,
       updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
   ]);
 
-  const productColumns = await d1.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
-  if (!productColumns.results.some((column) => column.name === "video")) {
+  async function ensureColumn(name: string, definition: string) {
+    const productColumns = await database.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
+    if (productColumns.results.some((column) => column.name === name)) return;
     try {
-      await d1.prepare("ALTER TABLE catalog_products ADD COLUMN video text DEFAULT '' NOT NULL").run();
+      await database.prepare(`ALTER TABLE catalog_products ADD COLUMN ${definition}`).run();
     } catch (error) {
-      const refreshedColumns = await d1.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
-      if (!refreshedColumns.results.some((column) => column.name === "video")) throw error;
+      const refreshedColumns = await database.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
+      if (!refreshedColumns.results.some((column) => column.name === name)) throw error;
     }
   }
+
+  await ensureColumn("image_url", "image_url text");
+  await ensureColumn("image_public_id", "image_public_id text");
+  await ensureColumn("additional_images_json", "additional_images_json text DEFAULT '[]' NOT NULL");
+  await ensureColumn("stock_quantity", "stock_quantity integer DEFAULT 0 NOT NULL");
+  await ensureColumn("video", "video text DEFAULT '' NOT NULL");
 }
 
 function rowToProduct(row: ProductRow): ManagedProduct {
@@ -162,61 +170,75 @@ export async function saveSiteTheme(theme: SiteTheme) {
 }
 
 export async function saveManagedProduct(product: ManagedProduct) {
+  await ensureCatalogTables();
+  const d1 = env.DB;
+  if (!d1) throw new Error("Cloudflare D1 binding `DB` is unavailable.");
   const now = new Date().toISOString();
-  await getDb()
-    .insert(catalogProducts)
-    .values({
-      slug: product.slug,
-      name: product.name,
-      shortName: product.shortName,
-      category: product.category,
-      tag: product.tag,
-      price: product.price,
-      unit: product.unit,
-      image: product.image,
-      imageUrl: product.imageUrl ?? product.image,
-      imagePublicId: product.imagePublicId ?? null,
-      additionalImagesJson: JSON.stringify(product.additionalImages ?? []),
-      stockQuantity: product.stockQuantity ?? 0,
-      video: product.video ?? "",
-      imagePosition: product.imagePosition ?? "center",
-      color: product.color,
-      rating: product.rating,
-      reviews: product.reviews,
-      description: product.description,
-      details: product.details,
-      featuresJson: JSON.stringify(product.features),
-      active: product.active,
-      sortOrder: product.sortOrder,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: catalogProducts.slug,
-      set: {
-        name: product.name,
-        shortName: product.shortName,
-        category: product.category,
-        tag: product.tag,
-        price: product.price,
-        unit: product.unit,
-        image: product.image,
-        imageUrl: product.imageUrl ?? product.image,
-        imagePublicId: product.imagePublicId ?? null,
-        additionalImagesJson: JSON.stringify(product.additionalImages ?? []),
-        stockQuantity: product.stockQuantity ?? 0,
-        video: product.video ?? "",
-        imagePosition: product.imagePosition ?? "center",
-        color: product.color,
-        rating: product.rating,
-        reviews: product.reviews,
-        description: product.description,
-        details: product.details,
-        featuresJson: JSON.stringify(product.features),
-        active: product.active,
-        sortOrder: product.sortOrder,
-        updatedAt: now,
-      },
-    });
+  const values = {
+    slug: String(product.slug ?? "").trim(),
+    name: String(product.name ?? "").trim(),
+    shortName: String(product.shortName ?? "").trim(),
+    category: String(product.category ?? "Pantry"),
+    tag: String(product.tag ?? ""),
+    price: Number(product.price) || 0,
+    unit: String(product.unit ?? ""),
+    image: String(product.image ?? "/images/farmose-groundnut-display.webp"),
+    video: String(product.video ?? ""),
+    imagePosition: String(product.imagePosition ?? "center"),
+    color: String(product.color ?? "#d9e9b5"),
+    rating: Number(product.rating) || 5,
+    reviews: Number(product.reviews) || 0,
+    description: String(product.description ?? ""),
+    details: String(product.details ?? ""),
+    featuresJson: JSON.stringify(Array.isArray(product.features) ? product.features : []),
+    active: product.active === false ? 0 : 1,
+    sortOrder: Number(product.sortOrder) || 0,
+  };
+
+  await d1.prepare(`INSERT INTO catalog_products (
+    slug, name, short_name, category, tag, price, unit, image, video,
+    image_position, color, rating, reviews, description, details,
+    features_json, active, sort_order, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(slug) DO UPDATE SET
+    name = excluded.name,
+    short_name = excluded.short_name,
+    category = excluded.category,
+    tag = excluded.tag,
+    price = excluded.price,
+    unit = excluded.unit,
+    image = excluded.image,
+    video = excluded.video,
+    image_position = excluded.image_position,
+    color = excluded.color,
+    rating = excluded.rating,
+    reviews = excluded.reviews,
+    description = excluded.description,
+    details = excluded.details,
+    features_json = excluded.features_json,
+    active = excluded.active,
+    sort_order = excluded.sort_order,
+    updated_at = excluded.updated_at`).bind(
+      values.slug,
+      values.name,
+      values.shortName,
+      values.category,
+      values.tag,
+      values.price,
+      values.unit,
+      values.image,
+      values.video,
+      values.imagePosition,
+      values.color,
+      values.rating,
+      values.reviews,
+      values.description,
+      values.details,
+      values.featuresJson,
+      values.active,
+      values.sortOrder,
+      now,
+    ).run();
 }
 
 export async function deleteManagedProduct(slug: string) {

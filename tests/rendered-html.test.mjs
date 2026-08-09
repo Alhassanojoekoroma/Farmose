@@ -67,6 +67,7 @@ test("the private admin workspace and managed catalog are configured", async () 
   assert.match(adminPage, /getAdminAccess/);
   assert.match(adminAuth, /FARMOSE_ADMIN_EMAILS/);
   assert.match(adminApi, /requireAdminApi/);
+  assert.match(adminApi, /Catalog product save failed/);
   assert.match(uploadApi, /farmose-temp/);
   assert.match(uploadApi, /MAX_CHUNK_BYTES/);
   assert.match(panel, /Save product/);
@@ -85,6 +86,9 @@ test("the private admin workspace and managed catalog are configured", async () 
   assert.match(migration, /CREATE TABLE `catalog_products`/);
   assert.match(migration, /CREATE TABLE `site_settings`/);
   assert.match(mediaMigration, /ADD `video` text/);
+  const catalogServer = await readFile(new URL("app/catalog-server.ts", root), "utf8");
+  assert.match(catalogServer, /ON CONFLICT\(slug\) DO UPDATE/);
+  assert.match(catalogServer, /ensureColumn\("stock_quantity"/);
 });
 
 test("the disposable starter preview is gone", async () => {

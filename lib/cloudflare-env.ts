@@ -1,5 +1,6 @@
 type D1PreparedStatement = {
   all: <T = unknown>(...args: unknown[]) => Promise<{ results: Array<T> }>;
+  bind: (...values: unknown[]) => D1PreparedStatement;
   run: (...args: unknown[]) => Promise<unknown>;
 };
 

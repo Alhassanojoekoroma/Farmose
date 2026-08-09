@@ -75,7 +75,9 @@ export async function PUT(request: Request) {
     });
     return Response.json({ ok: true });
   } catch (error) {
-    console.error("Catalog product save failed", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const cause = error instanceof Error && "cause" in error && error.cause instanceof Error ? error.cause.message : "";
+    console.error("Catalog product save failed", JSON.stringify({ message, cause }));
     return Response.json({ error: "The product could not be saved to the datastore." }, { status: 500 });
   }
 }
