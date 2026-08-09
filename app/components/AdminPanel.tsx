@@ -36,6 +36,20 @@ type MediaAsset = {
   uploaded: string;
 };
 
+type ThemeImageKey = "heroImage" | "logoImage" | "seafoodImage" | "pantryImage" | "produceImage" | "standardImage";
+
+async function readApiResponse<T extends object>(response: Response): Promise<T & { error?: string }> {
+  const body = await response.text();
+  if (!body) {
+    return { error: `The server returned an empty response (${response.status}). Please try again.` } as T & { error?: string };
+  }
+  try {
+    return JSON.parse(body) as T & { error?: string };
+  } catch {
+    return { error: `The server returned an unreadable response (${response.status}). Please try again.` } as T & { error?: string };
+  }
+}
+
 const blankProduct = (sortOrder: number): ManagedProduct => ({
   slug: "",
   name: "",
@@ -81,7 +95,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     setError("");
     try {
       const response = await fetch("/api/admin/catalog", { cache: "no-store" });
-      const result = (await response.json()) as AdminPayload & { error?: string };
+      const result = await readApiResponse<AdminPayload>(response);
       if (!response.ok) throw new Error(result.error || "The administration data could not be loaded.");
       setProducts(result.products);
       setTheme(result.theme);
@@ -100,7 +114,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
   async function loadMedia() {
     try {
       const response = await fetch("/api/admin/media", { cache: "no-store" });
-      const result = (await response.json()) as { media?: MediaAsset[]; error?: string };
+      const result = await readApiResponse<{ media?: MediaAsset[] }>(response);
       if (!response.ok) throw new Error(result.error || "Your media library could not be loaded.");
       setMedia(result.media ?? []);
     } catch (reason) {
@@ -112,7 +126,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     if (adminRole !== "owner") return;
     try {
       const response = await fetch("/api/admin/team", { cache: "no-store" });
-      const result = (await response.json()) as { users?: StaffUser[]; error?: string };
+      const result = await readApiResponse<{ users?: StaffUser[] }>(response);
       if (!response.ok) throw new Error(result.error || "Staff access could not be loaded.");
       setStaff(result.users ?? []);
     } catch (reason) {
@@ -134,7 +148,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     setSaving(true);
     setError("");
     const response = await fetch("/api/admin/team", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(staffDraft) });
-    const result = (await response.json()) as { error?: string };
+    const result = await readApiResponse<Record<string, never>>(response);
     if (!response.ok) setError(result.error || "Staff access could not be saved.");
     else {
       setNotice("Staff access saved.");
@@ -183,7 +197,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "product", product: draft }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result = await readApiResponse<Record<string, never>>(response);
       if (!response.ok) throw new Error(result.error || "The product could not be saved.");
       setNotice(`${draft.name} is now saved.`);
       setSelectedSlug(draft.slug);
@@ -200,7 +214,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     setSaving(true);
     setError("");
     const response = await fetch(`/api/admin/catalog?slug=${encodeURIComponent(selectedSlug)}`, { method: "DELETE" });
-    const result = (await response.json()) as { error?: string };
+    const result = await readApiResponse<Record<string, never>>(response);
     if (!response.ok) {
       setError(result.error || "The product could not be deleted.");
       setSaving(false);
@@ -212,7 +226,11 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     setSaving(false);
   }
 
-  async function uploadMedia(event: ChangeEvent<HTMLInputElement>, kind: "image" | "video") {
+  async function uploadMedia(
+    event: ChangeEvent<HTMLInputElement>,
+    kind: "image" | "video",
+    destination: "product" | "library" | ThemeImageKey = "product",
+  ) {
     const input = event.currentTarget;
     const files = Array.from(input.files ?? []);
     input.value = "";
@@ -252,9 +270,18 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         if (!uploadedAsset) throw new Error(`The ${kind} upload did not finish.`);
         uploaded.push(uploadedAsset);
       }
-      if (uploaded[0]) updateDraft(kind, uploaded[0].url);
+      if (uploaded[0] && destination === "product") updateDraft(kind, uploaded[0].url);
+      if (uploaded[0] && destination !== "product" && destination !== "library" && kind === "image") {
+        setTheme((current) => ({ ...current, [destination]: uploaded[0].url }));
+      }
       setMedia((current) => [...uploaded, ...current]);
-      setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added. The first file is selected for this product — save product to publish it.`);
+      if (destination === "product") {
+        setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added. The first file is selected for this product — save the product to publish it.`);
+      } else if (destination === "library") {
+        setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added to the media library.`);
+      } else {
+        setNotice("Image uploaded and selected. Publish the storefront content to make it live.");
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : `The ${kind} could not be uploaded.`);
     } finally {
@@ -274,7 +301,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "theme", theme }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result = await readApiResponse<Record<string, never>>(response);
       if (!response.ok) throw new Error(result.error || "The storefront appearance could not be saved.");
       setNotice("Storefront appearance published.");
     } catch (reason) {
@@ -297,6 +324,18 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     } else {
       setNotice("Order status updated.");
     }
+  }
+
+  function themeImageControl(label: string, key: ThemeImageKey) {
+    return (
+      <div className="admin-theme-image">
+        <label className="admin-field"><span>{label}</span><input list="farmose-media-images" value={theme[key]} onChange={(event) => setTheme({ ...theme, [key]: event.target.value })} /></label>
+        <div className="admin-upload admin-upload-compact">
+          <div><strong>Upload {label.toLowerCase()}</strong><small>Choose an image directly from this device.</small></div>
+          <label><input type="file" accept="image/*" onChange={(event) => void uploadMedia(event, "image", key)} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose image"}</label>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -386,29 +425,29 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
               <label className="admin-field"><span>Hero headline</span><input value={theme.heroTitle} onChange={(event) => setTheme({ ...theme, heroTitle: event.target.value })} /></label>
               <label className="admin-field"><span>Emphasised words</span><input value={theme.heroEmphasis} onChange={(event) => setTheme({ ...theme, heroEmphasis: event.target.value })} /></label>
               <label className="admin-field"><span>Hero supporting text</span><textarea rows={4} value={theme.heroBody} onChange={(event) => setTheme({ ...theme, heroBody: event.target.value })} /></label>
-              <label className="admin-field"><span>Hero image</span><input list="farmose-media-images" value={theme.heroImage} onChange={(event) => setTheme({ ...theme, heroImage: event.target.value })} /></label>
+              {themeImageControl("Hero image", "heroImage")}
               <div className="admin-section-title copy-title"><div><p>BRAND & CONTACT</p><h2>Logo and WhatsApp</h2></div></div>
-              <label className="admin-field"><span>Logo image</span><input list="farmose-media-images" value={theme.logoImage} onChange={(event) => setTheme({ ...theme, logoImage: event.target.value })} /></label>
+              {themeImageControl("Logo image", "logoImage")}
               <label className="admin-field"><span>WhatsApp number</span><input type="tel" value={theme.whatsappNumber} onChange={(event) => setTheme({ ...theme, whatsappNumber: event.target.value })} placeholder="+232 79 529291" /></label>
               <div className="admin-section-title copy-title"><div><p>HOME PAGE CATEGORIES</p><h2>Clean market cards</h2></div></div>
               <label className="admin-field"><span>Section heading</span><input value={theme.categoryHeading} onChange={(event) => setTheme({ ...theme, categoryHeading: event.target.value })} /></label>
               <div className="admin-form-grid">
                 <label><span>Seafood title</span><input value={theme.seafoodTitle} onChange={(event) => setTheme({ ...theme, seafoodTitle: event.target.value })} /></label>
                 <label><span>Seafood caption</span><input value={theme.seafoodCaption} onChange={(event) => setTheme({ ...theme, seafoodCaption: event.target.value })} /></label>
-                <label><span>Seafood image (blank uses colour)</span><input list="farmose-media-images" value={theme.seafoodImage} onChange={(event) => setTheme({ ...theme, seafoodImage: event.target.value })} /></label>
+                {themeImageControl("Seafood image (blank uses colour)", "seafoodImage")}
                 <label><span>Pantry title</span><input value={theme.pantryTitle} onChange={(event) => setTheme({ ...theme, pantryTitle: event.target.value })} /></label>
                 <label><span>Pantry caption</span><input value={theme.pantryCaption} onChange={(event) => setTheme({ ...theme, pantryCaption: event.target.value })} /></label>
-                <label><span>Pantry image (blank uses colour)</span><input list="farmose-media-images" value={theme.pantryImage} onChange={(event) => setTheme({ ...theme, pantryImage: event.target.value })} /></label>
+                {themeImageControl("Pantry image (blank uses colour)", "pantryImage")}
                 <label><span>Produce title</span><input value={theme.produceTitle} onChange={(event) => setTheme({ ...theme, produceTitle: event.target.value })} /></label>
                 <label><span>Produce caption</span><input value={theme.produceCaption} onChange={(event) => setTheme({ ...theme, produceCaption: event.target.value })} /></label>
-                <label><span>Produce image</span><input list="farmose-media-images" value={theme.produceImage} onChange={(event) => setTheme({ ...theme, produceImage: event.target.value })} /></label>
+                {themeImageControl("Produce image", "produceImage")}
               </div>
               <div className="admin-section-title copy-title"><div><p>FARMOSE STANDARD</p><h2>Process section</h2></div></div>
               <label className="admin-field"><span>Section label</span><input value={theme.standardEyebrow} onChange={(event) => setTheme({ ...theme, standardEyebrow: event.target.value })} /></label>
               <label className="admin-field"><span>Heading</span><input value={theme.standardTitle} onChange={(event) => setTheme({ ...theme, standardTitle: event.target.value })} /></label>
               <label className="admin-field"><span>Emphasised heading</span><input value={theme.standardEmphasis} onChange={(event) => setTheme({ ...theme, standardEmphasis: event.target.value })} /></label>
               <label className="admin-field"><span>Supporting text</span><textarea rows={3} value={theme.standardBody} onChange={(event) => setTheme({ ...theme, standardBody: event.target.value })} /></label>
-              <label className="admin-field"><span>Section image</span><input list="farmose-media-images" value={theme.standardImage} onChange={(event) => setTheme({ ...theme, standardImage: event.target.value })} /></label>
+              {themeImageControl("Section image", "standardImage")}
               <div className="admin-section-title copy-title"><div><p>VISIT & CONTACT</p><h2>Store information</h2></div></div>
               <label className="admin-field"><span>Store address</span><input value={theme.storeAddress} onChange={(event) => setTheme({ ...theme, storeAddress: event.target.value })} /></label>
               <label className="admin-field"><span>Landmark</span><input value={theme.storeLandmark} onChange={(event) => setTheme({ ...theme, storeLandmark: event.target.value })} /></label>
@@ -428,7 +467,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         {!loading && tab === "media" && (
           <section className="admin-media-library">
             <div className="admin-section-title"><div><p>ASSET LIBRARY</p><h2>Photos & videos</h2><small>Upload files on a product, then reuse them for any product from its editor.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh library</button></div>
-            <div className="admin-upload"><div><strong>Add images</strong><small>Upload brand, homepage, category or product images, then choose them in the Content or Products section.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose images"}</label></div>
+            <div className="admin-upload"><div><strong>Add images</strong><small>Upload brand, homepage, category or product images, then choose them in the Content or Products section.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image", "library")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose images"}</label></div>
             <div className="admin-media-grid">
               {media.map((asset) => <article key={asset.key}>{asset.kind === "video" ? <video controls preload="metadata" src={asset.url} /> : <img src={asset.url} alt="Farmose media asset" />}<span>{asset.kind === "video" ? "Video" : "Photo"} · {Math.max(1, Math.round(asset.size / 1024))} KB</span></article>)}
               {!media.length && <p className="admin-library-empty">No uploaded media yet. Open a product and select files from your device.</p>}

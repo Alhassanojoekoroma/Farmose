@@ -5,11 +5,20 @@ import { adminUsers } from "../../../../db/schema";
 
 const roles = ["editor", "orders"] as const;
 
+function databaseUnavailable(error: unknown) {
+  console.error("Staff access database operation failed", error);
+  return Response.json({ error: "The staff access database is temporarily unavailable." }, { status: 503 });
+}
+
 export async function GET() {
   const auth = await requireAdminApi("team");
   if (auth instanceof Response) return auth;
-  const users = await getDb().select().from(adminUsers).orderBy(asc(adminUsers.displayName));
-  return Response.json({ users });
+  try {
+    const users = await getDb().select().from(adminUsers).orderBy(asc(adminUsers.displayName));
+    return Response.json({ users });
+  } catch (error) {
+    return databaseUnavailable(error);
+  }
 }
 
 export async function PUT(request: Request) {
@@ -21,11 +30,15 @@ export async function PUT(request: Request) {
   if (!/^\S+@\S+\.\S+$/.test(email) || !displayName || !roles.includes(payload.role as (typeof roles)[number])) {
     return Response.json({ error: "Enter a valid email, staff name and role." }, { status: 400 });
   }
-  await getDb().insert(adminUsers).values({ email, displayName, role: payload.role!, active: payload.active !== false, updatedAt: new Date().toISOString() }).onConflictDoUpdate({
-    target: adminUsers.email,
-    set: { displayName, role: payload.role!, active: payload.active !== false, updatedAt: new Date().toISOString() },
-  });
-  return Response.json({ ok: true });
+  try {
+    await getDb().insert(adminUsers).values({ email, displayName, role: payload.role!, active: payload.active !== false, updatedAt: new Date().toISOString() }).onConflictDoUpdate({
+      target: adminUsers.email,
+      set: { displayName, role: payload.role!, active: payload.active !== false, updatedAt: new Date().toISOString() },
+    });
+    return Response.json({ ok: true });
+  } catch (error) {
+    return databaseUnavailable(error);
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -33,6 +46,10 @@ export async function DELETE(request: Request) {
   if (auth instanceof Response) return auth;
   const email = new URL(request.url).searchParams.get("email")?.trim().toLowerCase() ?? "";
   if (!email) return Response.json({ error: "A staff email is required." }, { status: 400 });
-  await getDb().delete(adminUsers).where(eq(adminUsers.email, email));
-  return Response.json({ ok: true });
+  try {
+    await getDb().delete(adminUsers).where(eq(adminUsers.email, email));
+    return Response.json({ ok: true });
+  } catch (error) {
+    return databaseUnavailable(error);
+  }
 }

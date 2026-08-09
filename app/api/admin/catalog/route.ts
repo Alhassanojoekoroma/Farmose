@@ -20,12 +20,17 @@ export async function GET() {
   const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
 
-  const [products, theme, recentOrders] = await Promise.all([
-    readManagedProducts(true),
-    readSiteTheme(),
-    getDb().select().from(orders).orderBy(desc(orders.createdAt)).limit(50).catch(() => []),
-  ]);
-  return Response.json({ products, theme, orders: recentOrders, admin: auth.displayName, role: auth.role });
+  try {
+    const [products, theme, recentOrders] = await Promise.all([
+      readManagedProducts(true),
+      readSiteTheme(),
+      getDb().select().from(orders).orderBy(desc(orders.createdAt)).limit(50).catch(() => []),
+    ]);
+    return Response.json({ products, theme, orders: recentOrders, admin: auth.displayName, role: auth.role });
+  } catch (error) {
+    console.error("Catalog administration load failed", error);
+    return Response.json({ error: "The product database is temporarily unavailable." }, { status: 503 });
+  }
 }
 
 export async function PUT(request: Request) {
@@ -38,8 +43,13 @@ export async function PUT(request: Request) {
 
   if (payload.type === "theme") {
     if (!hasAdminPermission(auth.role, "content")) return Response.json({ error: "Your role cannot publish storefront content." }, { status: 403 });
-    await saveSiteTheme(payload.theme);
-    return Response.json({ ok: true });
+    try {
+      await saveSiteTheme(payload.theme);
+      return Response.json({ ok: true });
+    } catch (error) {
+      console.error("Storefront content save failed", error);
+      return Response.json({ error: "The storefront content could not be saved to the database." }, { status: 503 });
+    }
   }
 
   const product = payload.product;

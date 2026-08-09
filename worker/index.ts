@@ -5,6 +5,7 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  MEDIA: unknown;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -27,6 +28,10 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Make request bindings available to application server modules. The
+    // binding names and targets are stable for the lifetime of this Worker.
+    (globalThis as typeof globalThis & { __cloudflareEnv?: Env }).__cloudflareEnv = env;
+
     const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {

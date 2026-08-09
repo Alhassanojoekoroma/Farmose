@@ -4,9 +4,16 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("the production build contains the Cloudflare worker", async () => {
+test("the production build contains the Cloudflare worker and runtime bindings", async () => {
   await access(new URL("dist/server/index.js", root));
   await access(new URL("dist/.openai/hosting.json", root));
+  const [worker, runtimeEnv] = await Promise.all([
+    readFile(new URL("worker/index.ts", root), "utf8"),
+    readFile(new URL("lib/cloudflare-env.ts", root), "utf8"),
+  ]);
+  assert.match(worker, /globalThis.*__cloudflareEnv/s);
+  assert.match(runtimeEnv, /new Proxy/);
+  assert.match(runtimeEnv, /runtime\.__cloudflareEnv/);
 });
 
 test("the Farmose buying journeys are present", async () => {
@@ -55,7 +62,8 @@ test("the private admin workspace and managed catalog are configured", async () 
     readFile(new URL("drizzle/0002_lazy_pepper_potts.sql", root), "utf8"),
   ]);
   assert.match(hosting, /"r2": "MEDIA"/);
-  assert.match(adminPage, /requireChatGPTUser/);
+  assert.match(adminPage, /getChatGPTUser/);
+  assert.match(adminPage, /target="_top"/);
   assert.match(adminPage, /getAdminAccess/);
   assert.match(adminAuth, /FARMOSE_ADMIN_EMAILS/);
   assert.match(adminApi, /requireAdminApi/);
@@ -66,6 +74,8 @@ test("the private admin workspace and managed catalog are configured", async () 
   assert.match(panel, /Choose video from device/);
   assert.match(panel, /YOUR MEDIA LIBRARY/);
   assert.match(panel, /multiple/);
+  assert.match(panel, /themeImageControl/);
+  assert.match(panel, /readApiResponse/);
   assert.match(mediaApi, /bucket\.list/);
   assert.match(storefront, /product-video-block/);
   assert.match(storefront, /FaWhatsapp/);

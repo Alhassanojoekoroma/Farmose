@@ -523,6 +523,11 @@ em { font-weight: 400; }
 .admin-upload label { margin: 0; padding: 9px 12px; border-radius: 8px; background: #edf4ee; cursor: pointer; }
 .admin-upload label input { display: none; }
 .admin-upload > input { grid-column: 1 / -1; }
+.admin-theme-image { min-width: 0; margin-bottom: 18px; }
+.admin-theme-image > .admin-field { margin-bottom: 8px; }
+.admin-upload-compact { margin-top: 0; padding: 11px 12px; background: #f8faf8; }
+.admin-upload-compact strong { font-size: 13px; }
+.admin-upload-compact small { font-size: 11px; }
 .admin-clear-media { justify-self: end; padding: 8px 10px; border: 1px solid #d8aaa4; border-radius: 8px; background: #fff8f7; color: #8d3128; cursor: pointer; }
 .admin-media-picker { margin-top: 18px; padding: 16px; border: 1px solid #d7dfd9; border-radius: 12px; background: #f8fbf8; }
 .admin-media-picker .admin-section-title, .admin-media-library .admin-section-title { margin-bottom: 14px; }
