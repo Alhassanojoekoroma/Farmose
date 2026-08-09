@@ -6,7 +6,7 @@ import { orders } from "../../../../db/schema";
 const statuses = ["new", "confirmed", "preparing", "out-for-delivery", "completed", "cancelled"];
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdminApi();
+  const auth = await requireAdminApi("orders");
   if (auth instanceof Response) return auth;
   const payload = (await request.json()) as { id?: number; status?: string };
   if (!payload.id || !payload.status || !statuses.includes(payload.status)) {

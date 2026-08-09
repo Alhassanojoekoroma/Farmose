@@ -1,17 +1,17 @@
 "use client";
+/* eslint-disable @next/next/no-img-element, @next/next/no-html-link-for-pages */
 
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
-import { defaultTheme, money, products as fallbackProducts, Product, SiteTheme } from "../farmose-data";
+import { money, Product, SiteTheme } from "../farmose-data";
 
 type View = "home" | "shop" | "product" | "checkout" | "wholesale" | "about";
 type PurchaseType = "once" | "weekly";
 type CartLine = { slug: string; quantity: number; purchaseType?: PurchaseType };
 
-const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "").replace(/\D/g, "");
-
-function whatsappUrl(message: string) {
-  const base = WHATSAPP_NUMBER ? `https://wa.me/${WHATSAPP_NUMBER}` : "https://wa.me/";
+function whatsappUrl(message: string, phoneNumber: string) {
+  const number = phoneNumber.replace(/\D/g, "");
+  const base = number ? `https://wa.me/${number}` : "https://wa.me/";
   return `${base}?text=${encodeURIComponent(message)}`;
 }
 
@@ -64,7 +64,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (slug: strin
   );
 }
 
-function Header({ cartCount, onCart, products, announcement }: { cartCount: number; onCart: () => void; products: Product[]; announcement: string }) {
+function Header({ cartCount, onCart, products, announcement, logoImage }: { cartCount: number; onCart: () => void; products: Product[]; announcement: string; logoImage: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -83,7 +83,7 @@ function Header({ cartCount, onCart, products, announcement }: { cartCount: numb
             ☰
           </button>
           <a className="brand-logo" href="/" aria-label="Farmose home">
-            <img src="/images/farmose-logo.png" alt="Farmose" />
+            <img src={logoImage} alt="Farmose" />
           </a>
           <div className="nav-right desktop-nav">
             <a href="/wholesale">WHOLESALE</a>
@@ -134,12 +134,14 @@ function CartDrawer({
   onClose,
   onQuantity,
   products,
+  whatsappNumber,
 }: {
   open: boolean;
   lines: CartLine[];
   onClose: () => void;
   onQuantity: (slug: string, quantity: number) => void;
   products: Product[];
+  whatsappNumber: string;
 }) {
   const subtotal = lines.reduce((sum, line) => {
     const product = products.find((item) => item.slug === line.slug);
@@ -206,7 +208,7 @@ function CartDrawer({
             <label className="gift-option"><input type="checkbox" /><span>Is this a gift?</span></label>
             <div className="subtotal"><span>Subtotal</span><b>{money(subtotal)}</b></div>
             <a className="button dark wide" href="/checkout">Checkout — {money(subtotal)}</a>
-            <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines, products))} target="_blank" rel="noreferrer">
+            <a className="button whatsapp wide" href={whatsappUrl(cartMessage(lines, products), whatsappNumber)} target="_blank" rel="noreferrer">
               <FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Order this cart via WhatsApp
             </a>
             <small>Delivery fee is calculated at checkout.</small>
@@ -259,13 +261,13 @@ function Home({ onAdd, products, theme }: { onAdd: (slug: string) => void; produ
 
       <section className="standard-section" id="standard">
         <div className="standard-photo">
-          <img src="/images/farmose-groundnut-display.webp" alt="Farmose groundnut paste jars displayed at the store" />
+          <img src={theme.standardImage} alt="Farmose products displayed at the store" />
           <span className="round-seal">CLEAN<br />LOCAL<br />GOOD</span>
         </div>
         <div className="standard-copy">
-          <p className="eyebrow">THE FARMOSE STANDARD</p>
-          <h2>Clean is not a claim.<br /><em>It is the process.</em></h2>
-          <p className="lead">Your favourite local ingredients should not come with hours of sorting, washing and grit at the bottom of the pot.</p>
+          <p className="eyebrow">{theme.standardEyebrow}</p>
+          <h2>{theme.standardTitle}<br /><em>{theme.standardEmphasis}</em></h2>
+          <p className="lead">{theme.standardBody}</p>
           <div className="steps-list">
             <article><b>01</b><div><h3>Carefully sourced</h3><p>We work with local growers, fishers and trusted suppliers.</p></div></article>
             <article><b>02</b><div><h3>Washed & sorted</h3><p>Dust, sand, stones and unwanted particles are removed.</p></div></article>
@@ -277,12 +279,12 @@ function Home({ onAdd, products, theme }: { onAdd: (slug: string) => void; produ
 
       <section className="category-section">
         <div className="section-heading centered">
-          <div><p className="eyebrow">FIND WHAT YOU NEED</p><h2>A clean market for every kind of cook.</h2></div>
+          <div><p className="eyebrow">FIND WHAT YOU NEED</p><h2>{theme.categoryHeading}</h2></div>
         </div>
         <div className="category-grid">
-          <a href="/shop?category=Fresh%20Seafood" className="category-card sea"><span>Fresh seafood</span><b>Cleaned to your preference →</b></a>
-          <a href="/shop?category=Pantry" className="category-card pantry"><span>Pantry essentials</span><b>Open, cook, enjoy →</b></a>
-          <a href="/shop?category=Fresh%20Produce" className="category-card produce"><span>Fresh produce</span><b>Local harvest, neatly packed →</b></a>
+          <a href="/shop?category=Fresh%20Seafood" className="category-card sea" style={theme.seafoodImage ? { backgroundImage: `linear-gradient(#0001, #0005), url(${theme.seafoodImage})` } : undefined}><span>{theme.seafoodTitle}</span><b>{theme.seafoodCaption}</b></a>
+          <a href="/shop?category=Pantry" className="category-card pantry" style={theme.pantryImage ? { backgroundImage: `linear-gradient(#0001, #0005), url(${theme.pantryImage})` } : undefined}><span>{theme.pantryTitle}</span><b>{theme.pantryCaption}</b></a>
+          <a href="/shop?category=Fresh%20Produce" className="category-card produce" style={theme.produceImage ? { backgroundImage: `linear-gradient(#0001, #0005), url(${theme.produceImage})` } : undefined}><span>{theme.produceTitle}</span><b>{theme.produceCaption}</b></a>
         </div>
       </section>
 
@@ -311,8 +313,11 @@ function Shop({ onAdd, products }: { onAdd: (slug: string) => void; products: Pr
   const [search, setSearch] = useState("");
   const categories = ["All", "Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"];
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("category");
-    if (requested && categories.includes(requested)) setCategory(requested);
+    const timer = window.setTimeout(() => {
+      const requested = new URLSearchParams(window.location.search).get("category");
+      if (requested && categories.includes(requested)) setCategory(requested);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
   const visible = products.filter((product) =>
     (category === "All" || product.category === category) &&
@@ -345,7 +350,7 @@ function Shop({ onAdd, products }: { onAdd: (slug: string) => void; products: Pr
   );
 }
 
-function ProductPage({ product, products, onAdd }: { product: Product; products: Product[]; onAdd: (slug: string, quantity?: number, purchaseType?: PurchaseType) => void }) {
+function ProductPage({ product, products, onAdd, whatsappNumber }: { product: Product; products: Product[]; onAdd: (slug: string, quantity?: number, purchaseType?: PurchaseType) => void; whatsappNumber: string }) {
   const [quantity, setQuantity] = useState(1);
   const [purchaseType, setPurchaseType] = useState<"once" | "weekly">("once");
   const selectedPrice = purchaseType === "weekly" ? product.price * 0.95 : product.price;
@@ -388,7 +393,7 @@ function ProductPage({ product, products, onAdd }: { product: Product; products:
             </div>
             <button className="button dark grow" type="button" onClick={() => onAdd(product.slug, quantity, purchaseType)}>Add to cart — {money(selectedPrice * quantity)}</button>
           </div>
-          <a className="button whatsapp wide product-whatsapp" href={whatsappUrl(message)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Order this item via WhatsApp</a>
+          <a className="button whatsapp wide product-whatsapp" href={whatsappUrl(message, whatsappNumber)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Order this item via WhatsApp</a>
           <p className="microcopy">Fresh-item availability may vary. We confirm every order before delivery.</p>
           {product.video && (
             <section className="product-video-block">
@@ -421,7 +426,7 @@ function ProductPage({ product, products, onAdd }: { product: Product; products:
   );
 }
 
-function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart: () => void; products: Product[] }) {
+function Checkout({ lines, clearCart, products, whatsappNumber }: { lines: CartLine[]; clearCart: () => void; products: Product[]; whatsappNumber: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
@@ -472,7 +477,7 @@ function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart
         <div className="confirmation-card">
           <span>✓</span><p className="eyebrow">ORDER RECEIVED</p><h1>Thank you. We’re checking your basket.</h1>
           <p>Your order number is <b>{orderNumber}</b>. Farmose will confirm availability, delivery timing and Mobile Money details before dispatch.</p>
-          <a className="button whatsapp wide" href={whatsappUrl(`Hello Farmose! I have just placed order ${orderNumber} for ${money(total)}. Please help me confirm it.`)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Confirm order on WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl(`Hello Farmose! I have just placed order ${orderNumber} for ${money(total)}. Please help me confirm it.`, whatsappNumber)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Confirm order on WhatsApp</a>
           <a className="text-link" href="/shop">Continue shopping →</a>
         </div>
       </main>
@@ -506,7 +511,7 @@ function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart
             <label><input type="radio" name="payment" value="AfriMoney" /><span><b>AfriMoney</b><small>Payment instructions sent after stock confirmation</small></span><strong>AM</strong></label>
             <label><input type="radio" name="payment" value="Cash on delivery" /><span><b>Cash on delivery</b><small>Pay when your Farmose order arrives</small></span><strong>Le</strong></label>
           </fieldset>
-          {error && <div className="form-error">{error} <a href={whatsappUrl(cartMessage(lines, products))} target="_blank" rel="noreferrer">Send this order on WhatsApp instead.</a></div>}
+          {error && <div className="form-error">{error} <a href={whatsappUrl(cartMessage(lines, products), whatsappNumber)} target="_blank" rel="noreferrer">Send this order on WhatsApp instead.</a></div>}
           <button className="button dark wide" type="submit" disabled={loading}>{loading ? "Placing your order…" : `Place order — ${money(total)}`}</button>
           <p className="checkout-note">Your order is confirmed only after Farmose checks fresh-item availability and delivery timing.</p>
         </form>
@@ -523,7 +528,7 @@ function Checkout({ lines, clearCart, products }: { lines: CartLine[]; clearCart
   );
 }
 
-function Wholesale() {
+function Wholesale({ whatsappNumber }: { whatsappNumber: string }) {
   const [form, setForm] = useState({ business: "", name: "", need: "", cadence: "Weekly" });
   const message = `Hello Farmose wholesale team!\n\nBusiness: ${form.business || "Not entered"}\nContact: ${form.name || "Not entered"}\nSupply needed: ${form.need || "I would like to discuss options"}\nFrequency: ${form.cadence}\n\nPlease help me with a bulk supply quote.`;
   return (
@@ -543,7 +548,7 @@ function Wholesale() {
           <label><span>Your name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
           <label><span>Products and quantities</span><textarea rows={4} value={form.need} onChange={(event) => setForm({ ...form, need: event.target.value })} placeholder="e.g. 20 kg cleaned catfish, 10 jars groundnut paste…" /></label>
           <label><span>How often?</span><select value={form.cadence} onChange={(event) => setForm({ ...form, cadence: event.target.value })}><option>One-time order</option><option>Weekly</option><option>Twice weekly</option><option>Monthly</option><option>Not sure yet</option></select></label>
-          <a className="button whatsapp wide" href={whatsappUrl(message)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Send wholesale request on WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl(message, whatsappNumber)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Send wholesale request on WhatsApp</a>
           <small>This opens a ready-written message. You can review it before sending.</small>
         </form>
       </section>
@@ -593,7 +598,7 @@ function About({ theme }: { theme: SiteTheme }) {
           <p className="eyebrow">NEED HELP?</p>
           <h3>Talk to the Farmose team.</h3>
           <p>Ask about availability, cleaning preferences, delivery areas or a regular wholesale supply.</p>
-          <a className="button whatsapp wide" href={whatsappUrl("Hello Farmose! I would like to ask about your products and store.")} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Open WhatsApp</a>
+          <a className="button whatsapp wide" href={whatsappUrl("Hello Farmose! I would like to ask about your products and store.", theme.whatsappNumber)} target="_blank" rel="noreferrer"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /> Open WhatsApp</a>
         </div>
       </section>
     </main>
@@ -604,14 +609,14 @@ function Footer({ theme }: { theme: SiteTheme }) {
   return (
     <footer className="site-footer" id="visit">
       <div className="footer-top">
-        <a className="brand-logo footer-logo" href="/" aria-label="Farmose home"><img src="/images/farmose-logo.png" alt="Farmose" /></a>
+        <a className="brand-logo footer-logo" href="/" aria-label="Farmose home"><img src={theme.logoImage} alt="Farmose" /></a>
         <h2>Good food starts <em>clean.</em></h2>
         <a className="button light" href="/shop">Shop Farmose</a>
       </div>
       <div className="footer-grid">
         <div><p className="eyebrow">VISIT</p><p>{theme.storeAddress}<br /><small>{theme.storeLandmark}</small><br /><small>{theme.storeHours}</small></p><a href={theme.directionsUrl} target="_blank" rel="noreferrer">Open directions ↗</a></div>
         <div><p className="eyebrow">SHOP</p><a href="/shop">All produce</a><a href="/shop?category=Pantry">Pantry</a><a href="/shop?category=Fresh%20Seafood">Seafood</a></div>
-        <div><p className="eyebrow">BUSINESS</p><a href="/wholesale">Wholesale supply</a><a href="/about">About & contact</a><a href={whatsappUrl("Hello Farmose! I have a question about your products.")} target="_blank" rel="noreferrer">WhatsApp us</a></div>
+        <div><p className="eyebrow">BUSINESS</p><a href="/wholesale">Wholesale supply</a><a href="/about">About & contact</a><a href={whatsappUrl("Hello Farmose! I have a question about your products.", theme.whatsappNumber)} target="_blank" rel="noreferrer">WhatsApp us</a></div>
         <div><p className="eyebrow">THE FARM NOTE</p><p>Seasonal produce, kitchen tips and what’s fresh.</p><form onSubmit={(event) => event.preventDefault()}><input type="email" aria-label="Email address" placeholder="Your email address" /><button type="submit" aria-label="Subscribe">→</button></form></div>
       </div>
       <div className="footer-bottom"><span>© {new Date().getFullYear()} Farmose Sierra Leone</span><span>Clean local food, thoughtfully prepared.</span></div>
@@ -619,42 +624,38 @@ function Footer({ theme }: { theme: SiteTheme }) {
   );
 }
 
-export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
+export function FarmoseSite({ view, slug, products, theme }: { view: View; slug?: string; products: Product[]; theme: SiteTheme }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>(fallbackProducts);
-  const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
-  const product = products.find((item) => item.slug === slug) ?? products[0] ?? fallbackProducts[0];
+  const [cartReady, setCartReady] = useState(false);
+  const product = products.find((item) => item.slug === slug) ?? products[0];
 
-  const safeLines = Array.isArray(lines) ? lines : [];
+  const safeLines = useMemo(
+    () => Array.isArray(lines) ? lines.filter((line) => products.some((item) => item.slug === line.slug)) : [],
+    [lines, products],
+  );
 
   useEffect(() => {
-    let active = true;
-    fetch("/api/catalog")
-      .then((response) => response.json())
-      .then((data: { products?: Product[]; theme?: SiteTheme }) => {
-        if (!active) return;
-        if (data.products?.length) setProducts(data.products);
-        if (data.theme) setTheme(data.theme);
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem("farmose-cart");
+        if (stored) {
+          const parsed = JSON.parse(stored) as CartLine[];
+          setLines(Array.isArray(parsed) ? parsed : []);
+        }
+      } catch {
+        setLines([]);
+      } finally {
+        setCartReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    try {
-      if (typeof window === "undefined") return;
-      const stored = window.localStorage.getItem("farmose-cart");
-      if (stored) setLines(JSON.parse(stored));
-    } catch {
-      setLines([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !cartReady) return;
     window.localStorage.setItem("farmose-cart", JSON.stringify(lines));
-  }, [lines]);
+  }, [cartReady, lines]);
 
   const count = useMemo(() => safeLines.reduce((sum, line) => sum + line.quantity, 0), [safeLines]);
   function add(slugToAdd: string, quantity = 1, purchaseType: PurchaseType = "once") {
@@ -682,16 +683,16 @@ export function FarmoseSite({ view, slug }: { view: View; slug?: string }) {
 
   return (
     <div className="site-shell" style={themeStyle}>
-      <Header cartCount={count} onCart={() => setCartOpen(true)} products={products} announcement={theme.announcement} />
+      <Header cartCount={count} onCart={() => setCartOpen(true)} products={products} announcement={theme.announcement} logoImage={theme.logoImage} />
       {view === "home" && <Home onAdd={add} products={products} theme={theme} />}
       {view === "shop" && <Shop onAdd={add} products={products} />}
-      {view === "product" && <ProductPage product={product} products={products} onAdd={add} />}
-      {view === "checkout" && <Checkout lines={safeLines} clearCart={() => setLines([])} products={products} />}
-      {view === "wholesale" && <Wholesale />}
+      {view === "product" && product && <ProductPage product={product} products={products} onAdd={add} whatsappNumber={theme.whatsappNumber} />}
+      {view === "checkout" && (cartReady ? <Checkout lines={safeLines} clearCart={() => setLines([])} products={products} whatsappNumber={theme.whatsappNumber} /> : <main className="confirmation-page"><div className="confirmation-card"><p className="eyebrow">YOUR BASKET</p><h1>Loading checkout…</h1></div></main>)}
+      {view === "wholesale" && <Wholesale whatsappNumber={theme.whatsappNumber} />}
       {view === "about" && <About theme={theme} />}
       <Footer theme={theme} />
-      <CartDrawer open={cartOpen} lines={safeLines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} />
-      <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.")} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /><span>WhatsApp</span></a>
+      <CartDrawer open={cartOpen} lines={safeLines} onClose={() => setCartOpen(false)} onQuantity={changeQuantity} products={products} whatsappNumber={theme.whatsappNumber} />
+      <a className="floating-whatsapp" href={whatsappUrl("Hello Farmose! I would like help with an order.", theme.whatsappNumber)} target="_blank" rel="noreferrer" aria-label="Chat with Farmose on WhatsApp"><FaWhatsapp className="whatsapp-icon" aria-hidden="true" /><span>WhatsApp</span></a>
     </div>
   );
 }

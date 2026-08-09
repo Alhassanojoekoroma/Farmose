@@ -50,3 +50,11 @@ export const siteSettings = sqliteTable("site_settings", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const adminUsers = sqliteTable("admin_users", {
+  email: text("email").primaryKey(),
+  displayName: text("display_name").notNull(),
+  role: text("role").notNull().default("editor"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

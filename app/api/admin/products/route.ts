@@ -24,7 +24,6 @@ export async function POST(request: Request) {
     const stockQuantity = Number(formData.get("stockQuantity") ?? 0);
     const imageFile = formData.get("image") as File | null;
     const keepExistingImage = String(formData.get("keepExistingImage") ?? "") === "true";
-    const existingImagePublicId = String(formData.get("existingImagePublicId") ?? "").trim();
 
     if (!name || !slug || !shortName || !category || !description || !details || !unit || !price) {
       return NextResponse.json({ error: "Please complete the product fields before saving." }, { status: 400 });

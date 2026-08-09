@@ -1,8 +1,10 @@
 "use client";
+/* eslint-disable @next/next/no-img-element, @next/next/no-html-link-for-pages */
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { defaultTheme, money, Product, SiteTheme } from "../farmose-data";
 import type { ManagedProduct } from "../catalog-server";
+import type { AdminRole } from "../admin-auth";
 
 type AdminOrder = {
   id: number;
@@ -20,9 +22,11 @@ type AdminPayload = {
   products: ManagedProduct[];
   theme: SiteTheme;
   orders: AdminOrder[];
+  role: AdminRole;
 };
 
-type Tab = "products" | "appearance" | "media" | "orders";
+type Tab = "products" | "appearance" | "media" | "orders" | "team";
+type StaffUser = { email: string; displayName: string; role: "editor" | "orders"; active: boolean };
 
 type MediaAsset = {
   key: string;
@@ -55,12 +59,14 @@ const blankProduct = (sortOrder: number): ManagedProduct => ({
 
 const categoryOptions: Product["category"][] = ["Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"];
 
-export function AdminPanel({ adminName, signOutPath }: { adminName: string; signOutPath: string }) {
-  const [tab, setTab] = useState<Tab>("products");
+export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: string; adminRole: AdminRole; signOutPath: string }) {
+  const [tab, setTab] = useState<Tab>(adminRole === "orders" ? "orders" : "products");
   const [products, setProducts] = useState<ManagedProduct[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [staffDraft, setStaffDraft] = useState<StaffUser>({ email: "", displayName: "", role: "editor", active: true });
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [draft, setDraft] = useState<ManagedProduct>(blankProduct(0));
   const [loading, setLoading] = useState(true);
@@ -102,10 +108,48 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
     }
   }
 
+  async function loadTeam() {
+    if (adminRole !== "owner") return;
+    try {
+      const response = await fetch("/api/admin/team", { cache: "no-store" });
+      const result = (await response.json()) as { users?: StaffUser[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Staff access could not be loaded.");
+      setStaff(result.users ?? []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Staff access could not be loaded.");
+    }
+  }
+
   useEffect(() => {
-    void load();
-    void loadMedia();
+    const timer = window.setTimeout(() => {
+      void load();
+      if (adminRole !== "orders") void loadMedia();
+      if (adminRole === "owner") void loadTeam();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
+
+  async function saveStaff(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const response = await fetch("/api/admin/team", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(staffDraft) });
+    const result = (await response.json()) as { error?: string };
+    if (!response.ok) setError(result.error || "Staff access could not be saved.");
+    else {
+      setNotice("Staff access saved.");
+      setStaffDraft({ email: "", displayName: "", role: "editor", active: true });
+      await loadTeam();
+    }
+    setSaving(false);
+  }
+
+  async function removeStaff(email: string) {
+    if (!window.confirm(`Remove admin access for ${email}?`)) return;
+    const response = await fetch(`/api/admin/team?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+    if (!response.ok) setError("Staff access could not be removed.");
+    else { setNotice("Staff access removed."); await loadTeam(); }
+  }
 
   const activeCount = useMemo(() => products.filter((product) => product.active).length, [products]);
   const newOrders = useMemo(() => orders.filter((order) => order.status === "new").length, [orders]);
@@ -259,21 +303,22 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
     <main className="admin-shell">
       <aside className="admin-sidebar">
         <a className="admin-brand" href="/" aria-label="Open Farmose storefront">
-          <img src="/images/farmose-logo.png" alt="Farmose" />
+          <img src={theme.logoImage} alt="Farmose" />
           <span>Store manager</span>
         </a>
         <nav aria-label="Administration sections">
-          <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>
-          <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Appearance</button>
+          {adminRole !== "orders" && <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>}
+          {adminRole !== "orders" && <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Content</button>}
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>
-          <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>
+          {adminRole !== "orders" && <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>}
+          {adminRole === "owner" && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Staff</button>}
         </nav>
         <div className="admin-account"><small>Signed in as</small><strong>{adminName}</strong><a href={signOutPath}>Sign out</a></div>
       </aside>
 
       <section className="admin-workspace">
         <header className="admin-topbar">
-          <div><p>FARMOSE ADMINISTRATION</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront appearance" : tab === "media" ? "Media library" : "Customer orders"}</h1></div>
+          <div><p>FARMOSE ADMINISTRATION · {adminRole.toUpperCase()}</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront content" : tab === "media" ? "Media library" : tab === "team" ? "Staff & roles" : "Customer orders"}</h1></div>
           <a href="/" target="_blank" rel="noreferrer">View live store ↗</a>
         </header>
         {(notice || error) && <div className={`admin-message ${error ? "error" : ""}`}>{error || notice}</div>}
@@ -341,16 +386,39 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
               <label className="admin-field"><span>Hero headline</span><input value={theme.heroTitle} onChange={(event) => setTheme({ ...theme, heroTitle: event.target.value })} /></label>
               <label className="admin-field"><span>Emphasised words</span><input value={theme.heroEmphasis} onChange={(event) => setTheme({ ...theme, heroEmphasis: event.target.value })} /></label>
               <label className="admin-field"><span>Hero supporting text</span><textarea rows={4} value={theme.heroBody} onChange={(event) => setTheme({ ...theme, heroBody: event.target.value })} /></label>
-              <label className="admin-field"><span>Hero image URL</span><input value={theme.heroImage} onChange={(event) => setTheme({ ...theme, heroImage: event.target.value })} /></label>
+              <label className="admin-field"><span>Hero image</span><input list="farmose-media-images" value={theme.heroImage} onChange={(event) => setTheme({ ...theme, heroImage: event.target.value })} /></label>
+              <div className="admin-section-title copy-title"><div><p>BRAND & CONTACT</p><h2>Logo and WhatsApp</h2></div></div>
+              <label className="admin-field"><span>Logo image</span><input list="farmose-media-images" value={theme.logoImage} onChange={(event) => setTheme({ ...theme, logoImage: event.target.value })} /></label>
+              <label className="admin-field"><span>WhatsApp number</span><input type="tel" value={theme.whatsappNumber} onChange={(event) => setTheme({ ...theme, whatsappNumber: event.target.value })} placeholder="+232 79 529291" /></label>
+              <div className="admin-section-title copy-title"><div><p>HOME PAGE CATEGORIES</p><h2>Clean market cards</h2></div></div>
+              <label className="admin-field"><span>Section heading</span><input value={theme.categoryHeading} onChange={(event) => setTheme({ ...theme, categoryHeading: event.target.value })} /></label>
+              <div className="admin-form-grid">
+                <label><span>Seafood title</span><input value={theme.seafoodTitle} onChange={(event) => setTheme({ ...theme, seafoodTitle: event.target.value })} /></label>
+                <label><span>Seafood caption</span><input value={theme.seafoodCaption} onChange={(event) => setTheme({ ...theme, seafoodCaption: event.target.value })} /></label>
+                <label><span>Seafood image (blank uses colour)</span><input list="farmose-media-images" value={theme.seafoodImage} onChange={(event) => setTheme({ ...theme, seafoodImage: event.target.value })} /></label>
+                <label><span>Pantry title</span><input value={theme.pantryTitle} onChange={(event) => setTheme({ ...theme, pantryTitle: event.target.value })} /></label>
+                <label><span>Pantry caption</span><input value={theme.pantryCaption} onChange={(event) => setTheme({ ...theme, pantryCaption: event.target.value })} /></label>
+                <label><span>Pantry image (blank uses colour)</span><input list="farmose-media-images" value={theme.pantryImage} onChange={(event) => setTheme({ ...theme, pantryImage: event.target.value })} /></label>
+                <label><span>Produce title</span><input value={theme.produceTitle} onChange={(event) => setTheme({ ...theme, produceTitle: event.target.value })} /></label>
+                <label><span>Produce caption</span><input value={theme.produceCaption} onChange={(event) => setTheme({ ...theme, produceCaption: event.target.value })} /></label>
+                <label><span>Produce image</span><input list="farmose-media-images" value={theme.produceImage} onChange={(event) => setTheme({ ...theme, produceImage: event.target.value })} /></label>
+              </div>
+              <div className="admin-section-title copy-title"><div><p>FARMOSE STANDARD</p><h2>Process section</h2></div></div>
+              <label className="admin-field"><span>Section label</span><input value={theme.standardEyebrow} onChange={(event) => setTheme({ ...theme, standardEyebrow: event.target.value })} /></label>
+              <label className="admin-field"><span>Heading</span><input value={theme.standardTitle} onChange={(event) => setTheme({ ...theme, standardTitle: event.target.value })} /></label>
+              <label className="admin-field"><span>Emphasised heading</span><input value={theme.standardEmphasis} onChange={(event) => setTheme({ ...theme, standardEmphasis: event.target.value })} /></label>
+              <label className="admin-field"><span>Supporting text</span><textarea rows={3} value={theme.standardBody} onChange={(event) => setTheme({ ...theme, standardBody: event.target.value })} /></label>
+              <label className="admin-field"><span>Section image</span><input list="farmose-media-images" value={theme.standardImage} onChange={(event) => setTheme({ ...theme, standardImage: event.target.value })} /></label>
               <div className="admin-section-title copy-title"><div><p>VISIT & CONTACT</p><h2>Store information</h2></div></div>
               <label className="admin-field"><span>Store address</span><input value={theme.storeAddress} onChange={(event) => setTheme({ ...theme, storeAddress: event.target.value })} /></label>
               <label className="admin-field"><span>Landmark</span><input value={theme.storeLandmark} onChange={(event) => setTheme({ ...theme, storeLandmark: event.target.value })} /></label>
               <label className="admin-field"><span>Opening hours / visitor note</span><input value={theme.storeHours} onChange={(event) => setTheme({ ...theme, storeHours: event.target.value })} /></label>
               <label className="admin-field"><span>Directions link</span><input type="url" value={theme.directionsUrl} onChange={(event) => setTheme({ ...theme, directionsUrl: event.target.value })} /></label>
+              <datalist id="farmose-media-images">{media.filter((asset) => asset.kind === "image").map((asset) => <option key={asset.key} value={asset.url} />)}</datalist>
               <div className="admin-actions"><button type="button" onClick={() => setTheme(defaultTheme)}>Reset draft</button><button className="primary" type="submit" disabled={saving}>{saving ? "Publishing…" : "Publish appearance"}</button></div>
             </section>
             <aside className="appearance-preview" style={{ background: theme.highlightColor, fontFamily: theme.bodyFont, fontSize: theme.baseFontSize }}>
-              <div className="appearance-preview-nav" style={{ background: theme.backgroundColor }}><span>☰</span><img src="/images/farmose-logo.png" alt="" /><span>▢</span></div>
+              <div className="appearance-preview-nav" style={{ background: theme.backgroundColor }}><span>☰</span><img src={theme.logoImage} alt="" /><span>▢</span></div>
               <div className="appearance-preview-copy"><b style={{ background: theme.accentColor }}>CLEAN LOCAL FOOD</b><h2 style={{ fontFamily: theme.headingFont, fontSize: Math.min(theme.headingMaxSize * .55, 48) }}>{theme.heroTitle} <em>{theme.heroEmphasis}</em></h2><p>{theme.heroBody}</p><button style={{ background: theme.primaryColor, borderRadius: theme.buttonRadius }}>Shop local produce</button></div>
               <img className="appearance-preview-image" src={theme.heroImage} alt="" />
             </aside>
@@ -360,9 +428,26 @@ export function AdminPanel({ adminName, signOutPath }: { adminName: string; sign
         {!loading && tab === "media" && (
           <section className="admin-media-library">
             <div className="admin-section-title"><div><p>ASSET LIBRARY</p><h2>Photos & videos</h2><small>Upload files on a product, then reuse them for any product from its editor.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh library</button></div>
+            <div className="admin-upload"><div><strong>Add images</strong><small>Upload brand, homepage, category or product images, then choose them in the Content or Products section.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose images"}</label></div>
             <div className="admin-media-grid">
               {media.map((asset) => <article key={asset.key}>{asset.kind === "video" ? <video controls preload="metadata" src={asset.url} /> : <img src={asset.url} alt="Farmose media asset" />}<span>{asset.kind === "video" ? "Video" : "Photo"} · {Math.max(1, Math.round(asset.size / 1024))} KB</span></article>)}
               {!media.length && <p className="admin-library-empty">No uploaded media yet. Open a product and select files from your device.</p>}
+            </div>
+          </section>
+        )}
+
+        {!loading && tab === "team" && adminRole === "owner" && (
+          <section className="admin-team admin-orders">
+            <div className="admin-section-title"><div><p>ROLE-BASED ACCESS</p><h2>Staff accounts</h2><small>Staff sign in with their own ChatGPT identity. Editors manage products/content/media; order staff manage checkouts only.</small></div></div>
+            <form className="admin-team-form admin-form-grid" onSubmit={saveStaff}>
+              <label><span>Staff email</span><input required type="email" value={staffDraft.email} onChange={(event) => setStaffDraft({ ...staffDraft, email: event.target.value })} /></label>
+              <label><span>Display name / username</span><input required value={staffDraft.displayName} onChange={(event) => setStaffDraft({ ...staffDraft, displayName: event.target.value })} /></label>
+              <label><span>Role</span><select value={staffDraft.role} onChange={(event) => setStaffDraft({ ...staffDraft, role: event.target.value as StaffUser["role"] })}><option value="editor">Store editor</option><option value="orders">Order manager</option></select></label>
+              <div className="admin-actions"><button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Add or update staff"}</button></div>
+            </form>
+            <div className="admin-team-list">
+              {staff.map((member) => <article key={member.email}><div><strong>{member.displayName}</strong><small>{member.email}</small></div><div><b>{member.role === "editor" ? "Store editor" : "Order manager"}</b><small>{member.active ? "Active" : "Disabled"}</small></div><button type="button" className="danger" onClick={() => void removeStaff(member.email)}>Remove</button></article>)}
+              {!staff.length && <div className="admin-empty"><h3>No staff accounts yet.</h3><p>Add a staff email above to grant the appropriate access.</p></div>}
             </div>
           </section>
         )}

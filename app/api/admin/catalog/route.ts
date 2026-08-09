@@ -1,5 +1,5 @@
-import { desc, eq } from "drizzle-orm";
-import { requireAdminApi } from "../../../admin-auth";
+import { desc } from "drizzle-orm";
+import { hasAdminPermission, requireAdminApi } from "../../../admin-auth";
 import {
   deleteManagedProduct,
   ManagedProduct,
@@ -10,9 +10,7 @@ import {
 } from "../../../catalog-server";
 import { SiteTheme } from "../../../farmose-data";
 import { getDb } from "../../../../db";
-import { catalogProducts, orders } from "../../../../db/schema";
-import { deleteProductImage } from "../../../../lib/cloudinary";
-import { deleteProductFromSupabase, saveProductToSupabase } from "../../../../lib/supabase-products";
+import { orders } from "../../../../db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +25,7 @@ export async function GET() {
     readSiteTheme(),
     getDb().select().from(orders).orderBy(desc(orders.createdAt)).limit(50).catch(() => []),
   ]);
-  return Response.json({ products, theme, orders: recentOrders, admin: auth.displayName });
+  return Response.json({ products, theme, orders: recentOrders, admin: auth.displayName, role: auth.role });
 }
 
 export async function PUT(request: Request) {
@@ -39,11 +37,13 @@ export async function PUT(request: Request) {
     | { type: "theme"; theme: SiteTheme };
 
   if (payload.type === "theme") {
+    if (!hasAdminPermission(auth.role, "content")) return Response.json({ error: "Your role cannot publish storefront content." }, { status: 403 });
     await saveSiteTheme(payload.theme);
     return Response.json({ ok: true });
   }
 
   const product = payload.product;
+  if (!hasAdminPermission(auth.role, "products")) return Response.json({ error: "Your role cannot edit products." }, { status: 403 });
   if (!product || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(product.slug)) {
     return Response.json({ error: "Use a lowercase product slug with words separated by hyphens." }, { status: 400 });
   }
@@ -63,25 +63,6 @@ export async function PUT(request: Request) {
       sortOrder: Number(product.sortOrder) || 0,
       features: product.features.filter(Boolean).slice(0, 3),
     });
-    await saveProductToSupabase({
-      slug: product.slug,
-      name: product.name,
-      short_name: product.shortName,
-      shortName: product.shortName,
-      category: product.category,
-      tag: product.tag,
-      price: Number(product.price),
-      unit: product.unit,
-      image_url: product.image,
-      image_public_id: product.imagePublicId ?? null,
-      additional_images: (product.additionalImages ?? []).map((url) => ({ url, publicId: "" })),
-      stock_quantity: product.stockQuantity ?? 0,
-      description: product.description,
-      details: product.details,
-      features: product.features.filter(Boolean).slice(0, 3),
-      active: product.active,
-      sort_order: Number(product.sortOrder) || 0,
-    });
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Catalog product save failed", error);
@@ -90,22 +71,12 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdminApi();
+  const auth = await requireAdminApi("products");
   if (auth instanceof Response) return auth;
   const slug = new URL(request.url).searchParams.get("slug") ?? "";
   if (!slug) return Response.json({ error: "A product slug is required." }, { status: 400 });
   try {
-    const existing = await getDb().select({ imagePublicId: catalogProducts.imagePublicId }).from(catalogProducts).where(eq(catalogProducts.slug, slug)).limit(1);
     await deleteManagedProduct(slug);
-    await deleteProductFromSupabase(slug);
-    const publicId = existing[0]?.imagePublicId;
-    if (publicId) {
-      try {
-        await deleteProductImage(publicId);
-      } catch (error) {
-        console.error("Cloudinary cleanup failed", error);
-      }
-    }
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Catalog product delete failed", error);

@@ -40,6 +40,23 @@ export type SiteTheme = {
   storeLandmark: string;
   storeHours: string;
   directionsUrl: string;
+  logoImage: string;
+  whatsappNumber: string;
+  categoryHeading: string;
+  seafoodTitle: string;
+  seafoodCaption: string;
+  seafoodImage: string;
+  pantryTitle: string;
+  pantryCaption: string;
+  pantryImage: string;
+  produceTitle: string;
+  produceCaption: string;
+  produceImage: string;
+  standardImage: string;
+  standardEyebrow: string;
+  standardTitle: string;
+  standardEmphasis: string;
+  standardBody: string;
 };
 
 export const defaultTheme: SiteTheme = {
@@ -62,6 +79,23 @@ export const defaultTheme: SiteTheme = {
   storeLandmark: "Near Orange Office",
   storeHours: "Contact us on WhatsApp for today’s opening hours.",
   directionsUrl: "https://www.google.com/maps/search/?api=1&query=1%20Foday%20Drive%2C%20Main%20Regent%20Road%2C%20Hill%20Station%2C%20Freetown%2C%20Sierra%20Leone",
+  logoImage: "/images/farmose-logo-new.png",
+  whatsappNumber: "+232 79 529291",
+  categoryHeading: "A clean market for every kind of cook.",
+  seafoodTitle: "Fresh seafood",
+  seafoodCaption: "Cleaned to your preference →",
+  seafoodImage: "",
+  pantryTitle: "Pantry essentials",
+  pantryCaption: "Open, cook, enjoy →",
+  pantryImage: "",
+  produceTitle: "Fresh produce",
+  produceCaption: "Local harvest, neatly packed →",
+  produceImage: "/images/farmose-peppers.webp",
+  standardImage: "/images/farmose-groundnut-display.webp",
+  standardEyebrow: "THE FARMOSE STANDARD",
+  standardTitle: "Clean is not a claim.",
+  standardEmphasis: "It is the process.",
+  standardBody: "Your favourite local ingredients should not come with hours of sorting, washing and grit at the bottom of the pot.",
 };
 
 export const products: Product[] = [

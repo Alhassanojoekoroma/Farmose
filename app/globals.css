@@ -562,6 +562,12 @@ em { font-weight: 400; }
 .admin-orders article > div { min-width: 0; display: grid; gap: 2px; }
 .admin-orders article small { color: #6a756e; overflow: hidden; text-overflow: ellipsis; }
 .admin-orders select { min-height: 40px; padding: 7px 9px; border: 1px solid #bfc8c1; border-radius: 8px; background: white; }
+.admin-team-form { padding-bottom: 24px; border-bottom: 1px solid #e1e5e2; }
+.admin-team-form label { display: grid; gap: 6px; color: #4e5a53; font-size: 12px; font-weight: 800; }
+.admin-team-form input, .admin-team-form select { width: 100%; min-height: 43px; padding: 9px 11px; border: 1px solid #bdc7c0; border-radius: 8px; background: white; }
+.admin-team-form .admin-actions { margin: 0; padding: 0; border: 0; align-items: end; }
+.admin-team-list article { grid-template-columns: 1.4fr 1fr auto; }
+.admin-team-list .danger { padding: 9px 12px; border: 1px solid #e6bbb5; border-radius: 8px; background: #fff8f7; color: #9b3025; cursor: pointer; }
 .admin-denied { min-height: 100vh; padding: 30px; background: #063f2f; display: grid; place-items: center; }
 .admin-denied > div { max-width: 640px; padding: 50px; border-radius: 20px; background: #fbf7e9; text-align: center; }
 .admin-denied h1 { font-size: 48px; }
@@ -585,7 +591,7 @@ em { font-weight: 400; }
   .admin-shell { display: block; padding-bottom: 76px; }
   .admin-sidebar { position: fixed; z-index: 60; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 70px; padding: 8px 12px; flex-direction: row; align-items: center; }
   .admin-brand, .admin-account { display: none; }
-  .admin-sidebar nav { width: 100%; margin: 0; grid-template-columns: repeat(4, 1fr); }
+  .admin-sidebar nav { width: 100%; margin: 0; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); }
   .admin-sidebar nav button { min-height: 53px; display: flex; flex-direction: column; gap: 0; font-size: 10px; text-align: center; }
   .admin-sidebar nav button span { font-size: 18px; }
   .admin-sidebar nav button b { position: absolute; margin: -4px 0 0 25px; }
