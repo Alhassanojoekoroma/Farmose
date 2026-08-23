@@ -79,6 +79,7 @@ function rowToProduct(row: ProductRow): ManagedProduct {
     features = [];
   }
 
+  const primaryImage = row.image || row.imageUrl || "/images/farmose-groundnut-display.webp";
   return {
     slug: row.slug,
     name: row.name,
@@ -87,8 +88,8 @@ function rowToProduct(row: ProductRow): ManagedProduct {
     tag: row.tag,
     price: row.price,
     unit: row.unit,
-    image: row.image,
-    imageUrl: row.imageUrl ?? row.image,
+    image: primaryImage,
+    imageUrl: primaryImage,
     imagePublicId: row.imagePublicId ?? undefined,
     additionalImages: (() => {
       try {
@@ -145,9 +146,13 @@ export async function readSiteTheme(): Promise<SiteTheme> {
     return Number.isFinite(value) ? value : fallback;
   };
 
+  const backgroundColor = String(stored.backgroundColor ?? defaultTheme.backgroundColor).toLowerCase() === "#fbf7e9"
+    ? "#e6fcd5"
+    : String(stored.backgroundColor ?? defaultTheme.backgroundColor);
   return {
     ...defaultTheme,
     ...stored,
+    backgroundColor,
     baseFontSize: numeric("baseFontSize", defaultTheme.baseFontSize),
     headingMaxSize: Math.min(76, Math.max(56, numeric("headingMaxSize", defaultTheme.headingMaxSize))),
     buttonRadius: numeric("buttonRadius", defaultTheme.buttonRadius),
@@ -177,8 +182,8 @@ export async function saveManagedProduct(product: ManagedProduct) {
   const values = {
     slug: String(product.slug ?? "").trim(), name: String(product.name ?? "").trim(), shortName: String(product.shortName ?? "").trim(),
     category: String(product.category ?? "Pantry"), tag: String(product.tag ?? ""), price: Number(product.price) || 0,
-    unit: String(product.unit ?? ""), image: String(product.image ?? "/images/farmose-groundnut-display.webp"),
-    imageUrl: String(product.imageUrl ?? product.image ?? ""), imagePublicId: product.imagePublicId ?? null,
+    unit: String(product.unit ?? ""), image: String(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp"),
+    imageUrl: String(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp"), imagePublicId: product.imagePublicId ?? null,
     additionalImagesJson: JSON.stringify(product.additionalImages ?? []), stockQuantity: Number(product.stockQuantity) || 0,
     video: String(product.video ?? ""), imagePosition: String(product.imagePosition ?? "center"), color: String(product.color ?? "#d9e9b5"),
     rating: Number(product.rating) || 5, reviews: Number(product.reviews) || 0, description: String(product.description ?? ""),

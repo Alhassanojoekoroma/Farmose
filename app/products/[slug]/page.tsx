@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const host = incoming.get("x-forwarded-host") ?? incoming.get("host") ?? "farmose.local";
   const protocol = incoming.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
-  const image = new URL(product.imageUrl || product.image, origin).toString();
+  const image = new URL(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp", origin).toString();
   return {
     title: product.name,
     description: product.description,
@@ -39,7 +39,7 @@ export default async function ProductRoute({ params }: { params: Promise<{ slug:
       {
         "@type": "Product",
         name: product.name,
-        image: product.imageUrl || product.image,
+        image: product.image || product.imageUrl || "/images/farmose-groundnut-display.webp",
         description: product.description,
         category: product.category,
         brand: { "@type": "Brand", name: "Farmose" },

@@ -61,7 +61,7 @@ export type SiteTheme = {
 
 export const defaultTheme: SiteTheme = {
   primaryColor: "#063f2f",
-  backgroundColor: "#fbf7e9",
+  backgroundColor: "#e6fcd5",
   accentColor: "#ff7a2f",
   highlightColor: "#cfe1f6",
   bodyFont: "Arial, Helvetica, sans-serif",
@@ -72,8 +72,7 @@ export const defaultTheme: SiteTheme = {
   announcement: "FREETOWN DELIVERY · PICKUP · BULK ORDERS",
   heroTitle: "Clean local food,",
   heroEmphasis: "ready for your kitchen.",
-  heroBody:
-    "Shop carefully sourced Sierra Leonean produce, seafood and pantry staples—cleaned, prepared and packed with care.",
+  heroBody: "Local favourites, carefully prepared and ready to order.",
   heroImage: "/images/farmose-peppers.webp",
   storeAddress: "1 Foday Drive, Main Regent Road, Hill Station, Freetown",
   storeLandmark: "Near Orange Office",

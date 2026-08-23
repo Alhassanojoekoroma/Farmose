@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
 import { defaultTheme, money, products as fallbackProducts, Product, SiteTheme } from "../farmose-data";
+import { CylinderCarousel } from "./CylinderCarousel";
 
 type View = "home" | "shop" | "product" | "checkout" | "wholesale" | "about";
 type PurchaseType = "once" | "weekly";
@@ -33,8 +34,12 @@ function cartMessage(lines: CartLine[], products: Product[]) {
   return `Hello Farmose! I would like to order:\n\n${selected}\n\nSubtotal: ${money(total)}\n\nPlease confirm availability and delivery.`;
 }
 
+function productImageSource(product: Product) {
+  return product.image || product.imageUrl || "/images/farmose-groundnut-display.webp";
+}
+
 function ProductImage({ product, sizes, priority = false, alt = product.name }: { product: Product; sizes: string; priority?: boolean; alt?: string }) {
-  const source = product.imageUrl || product.image || "/images/farmose-groundnut-display.webp";
+  const source = productImageSource(product);
   return <Image src={source} alt={alt} fill sizes={sizes} priority={priority} unoptimized={source.startsWith("http") && !source.startsWith("https://res.cloudinary.com/")} style={{ objectPosition: product.imagePosition ?? "center" }} />;
 }
 
@@ -70,7 +75,7 @@ function Header({ cartCount, onCart, announcement, logoImage }: { cartCount: num
           <div className="nav-left desktop-nav"><a href="/shop">Shop</a><a href="/about">About</a></div>
           <Link className="brand-logo" href="/" aria-label="Farmose home"><Image src={logoImage} width={112} height={70} sizes="112px" alt="Farmose" priority /></Link>
           <div className="nav-right desktop-nav"><a href="/wholesale">Bulk orders</a><a href="/about#contact">Contact</a></div>
-          <button className="cart-button" type="button" onClick={onCart} aria-label={`Open cart with ${cartCount} items`}><span>Cart</span><b>{cartCount}</b></button>
+          <button className="cart-button" type="button" onClick={onCart} aria-label={`Open cart with ${cartCount} items`}><span className="bag-icon" style={{ display: "block" }} aria-hidden="true"><i /></span><b>{cartCount}</b></button>
         </nav>
       </header>
       {menuOpen && <nav className="mobile-navigation" id="mobile-navigation" aria-label="Mobile navigation"><a href="/shop">Shop products</a><a href="/wholesale">Bulk orders</a><a href="/about">About Farmose</a><a href="/about#contact">Contact</a></nav>}
@@ -114,11 +119,20 @@ function CartDrawer({ open, lines, onClose, onQuantity, products, whatsappNumber
 
 function Home({ onAdd, products, theme }: { onAdd: (slug: string) => void; products: Product[]; theme: SiteTheme }) {
   const categories = Array.from(new Set(products.map((product) => product.category)));
+  const carouselImages = products.slice(0, 3).map((product) => ({
+    src: productImageSource(product),
+    alt: product.name,
+    position: product.imagePosition,
+  }));
+  while (carouselImages.length < 3) {
+    carouselImages.push({ src: theme.heroImage, alt: "Farmose local produce", position: "center" });
+  }
   return (
     <main>
-      <section className="home-hero">
-        <div className="hero-copy"><p className="eyebrow">CLEAN LOCAL FOOD · SIERRA LEONE</p><h1>{theme.heroTitle} <em>{theme.heroEmphasis}</em></h1><p>{theme.heroBody}</p><div className="button-row"><a className="button dark" href="/shop">Explore products</a><a className="button outline" href="/wholesale">Bulk orders</a></div></div>
-        <div className="hero-image"><Image src={theme.heroImage} alt="Fresh local produce prepared by Farmose" fill sizes="(max-width: 760px) 100vw, 48vw" priority /></div>
+      <section className="home-hero" aria-labelledby="home-hero-title">
+        <div className="hero-copy"><p className="eyebrow">CLEAN LOCAL FOOD · SIERRA LEONE</p><h1 id="home-hero-title">{theme.heroTitle} <em>{theme.heroEmphasis}</em></h1><p>{theme.heroBody}</p><div className="button-row"><a className="button dark" href="/shop">Explore products</a><a className="button outline" href="/wholesale">Bulk orders</a></div></div>
+        <CylinderCarousel images={carouselImages} aria-label="Featured Farmose products" />
+        <div className="hero-trust" aria-label="Why shop Farmose"><span><i aria-hidden="true">✓</i> Carefully prepared</span><span><i aria-hidden="true">✓</i> Freetown delivery</span><span><i aria-hidden="true">✓</i> Bulk supply</span></div>
       </section>
       <section className="section products-section">
         <div className="section-heading compact-heading"><div><p className="eyebrow">SHOP FARMOSE</p><h2>{theme.categoryHeading}</h2></div><a className="text-link" href="/shop">View all products <span aria-hidden="true">→</span></a></div>
@@ -127,9 +141,9 @@ function Home({ onAdd, products, theme }: { onAdd: (slug: string) => void; produ
       </section>
       <section className="standard-section">
         <div className="standard-photo"><Image src={theme.standardImage} alt="Farmose products in the Freetown store" fill sizes="(max-width: 760px) 100vw, 48vw" /></div>
-        <div className="standard-copy"><p className="eyebrow">{theme.standardEyebrow}</p><h2>{theme.standardTitle} {theme.standardEmphasis}</h2><p className="lead">{theme.standardBody}</p><div className="steps-list"><article><b>01</b><div><h3>Locally sourced</h3><p>From trusted growers, fishers and suppliers.</p></div></article><article><b>02</b><div><h3>Carefully prepared</h3><p>Washed, sorted or processed as each product needs.</p></div></article><article><b>03</b><div><h3>Ready to order</h3><p>For home kitchens and businesses across Freetown.</p></div></article></div><a className="text-link" href="/about">How Farmose works <span aria-hidden="true">→</span></a></div>
+        <div className="standard-copy"><p className="eyebrow">{theme.standardEyebrow}</p><h2>{theme.standardTitle} {theme.standardEmphasis}</h2><p className="lead">{theme.standardBody}</p><a className="text-link" href="/about">How Farmose works <span aria-hidden="true">→</span></a></div>
       </section>
-      <section className="wholesale-band"><div><p className="eyebrow">FOR RESTAURANTS, HOTELS & CATERERS</p><h2>Need a dependable bulk supply?</h2></div><div><p>Tell us what your kitchen uses, the quantities you need and how often you order.</p><a className="button light" href="/wholesale">Start a wholesale order</a></div></section>
+      <section className="wholesale-band"><div><p className="eyebrow">FOR BUSINESS</p><h2>Need a dependable bulk supply?</h2></div><a className="button light" href="/wholesale">Start a wholesale order</a></section>
     </main>
   );
 }
@@ -276,7 +290,8 @@ export function FarmoseSite({ view, slug, category, products: initialProducts = 
   }
   function changeQuantity(slugToChange: string, quantity: number) { setLines((current) => quantity <= 0 ? current.filter((line) => line.slug !== slugToChange) : current.map((line) => line.slug === slugToChange ? { ...line, quantity } : line)); }
 
-  const themeStyle = { "--forest": theme.primaryColor, "--cream": theme.backgroundColor, "--sans": theme.bodyFont, "--serif": theme.headingFont, "--base-font-size": `${theme.baseFontSize}px`, "--heading-max-size": `${theme.headingMaxSize}px`, "--button-radius": `${Math.min(theme.buttonRadius, 14)}px` } as CSSProperties;
+  const backgroundColor = theme.backgroundColor.toLowerCase() === "#fbf7e9" ? "#e6fcd5" : theme.backgroundColor;
+  const themeStyle = { "--forest": theme.primaryColor, "--cream": backgroundColor, "--sans": theme.bodyFont, "--serif": theme.headingFont, "--base-font-size": `${theme.baseFontSize}px`, "--heading-max-size": `${theme.headingMaxSize}px`, "--button-radius": `${Math.min(theme.buttonRadius, 14)}px` } as CSSProperties;
 
   return (
     <div className="site-shell" style={themeStyle}>

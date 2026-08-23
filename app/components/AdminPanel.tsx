@@ -272,9 +272,16 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         if (!uploadedAsset) throw new Error(`The ${kind} upload did not finish.`);
         uploaded.push(uploadedAsset);
       }
-      if (uploaded[0] && destination === "product") updateDraft(kind, uploaded[0].url);
-      if (uploaded[0] && destination !== "product" && destination !== "library" && kind === "image") {
-        setTheme((current) => ({ ...current, [destination]: uploaded[0].url }));
+      const firstUploaded = uploaded[0];
+      if (firstUploaded && destination === "product") {
+        if (kind === "image") {
+          setDraft((current) => ({ ...current, image: firstUploaded.url, imageUrl: firstUploaded.url }));
+        } else {
+          updateDraft("video", firstUploaded.url);
+        }
+      }
+      if (firstUploaded && destination !== "product" && destination !== "library" && kind === "image") {
+        setTheme((current) => ({ ...current, [destination]: firstUploaded.url }));
       }
       setMedia((current) => [...uploaded, ...current]);
       if (destination === "product") {
@@ -399,7 +406,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
               <section className="admin-media-picker" aria-label="Product media library">
                 <div className="admin-section-title"><div><p>YOUR MEDIA LIBRARY</p><h2>Choose the product photo</h2><small>Click any image to use it for this product. No image URLs are needed.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh</button></div>
                 <div className="admin-media-grid compact">
-                  {media.filter((asset) => asset.kind === "image").map((asset) => <button className={draft.image === asset.url ? "selected" : ""} type="button" key={asset.key} onClick={() => { updateDraft("image", asset.url); setNotice("Photo selected. Save product to publish it."); }}><img src={asset.url} alt="Uploaded product option" /><span>{draft.image === asset.url ? "Selected" : "Use this photo"}</span></button>)}
+                  {media.filter((asset) => asset.kind === "image").map((asset) => <button className={draft.image === asset.url ? "selected" : ""} type="button" key={asset.key} onClick={() => { setDraft((current) => ({ ...current, image: asset.url, imageUrl: asset.url })); setNotice("Photo selected. Save product to publish it."); }}><img src={asset.url} alt="Uploaded product option" /><span>{draft.image === asset.url ? "Selected" : "Use this photo"}</span></button>)}
                   {!media.some((asset) => asset.kind === "image") && <p className="admin-library-empty">Upload photos above and they will stay here for every product.</p>}
                 </div>
               </section>

@@ -55,8 +55,11 @@ export async function PUT(request: Request) {
   }
 
   try {
+    const primaryImage = String(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp");
     await saveManagedProduct({
       ...product,
+      image: primaryImage,
+      imageUrl: primaryImage,
       price: Number(product.price),
       rating: Number(product.rating) || 5,
       reviews: Number(product.reviews) || 0,
@@ -72,7 +75,7 @@ export async function PUT(request: Request) {
       tag: product.tag,
       price: Number(product.price),
       unit: product.unit,
-      image_url: product.image,
+      image_url: primaryImage,
       image_public_id: product.imagePublicId ?? null,
       additional_images: (product.additionalImages ?? []).map((url) => ({ url, publicId: "" })),
       stock_quantity: product.stockQuantity ?? 0,
