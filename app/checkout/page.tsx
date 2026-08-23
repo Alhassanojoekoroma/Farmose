@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Checkout",
   description: "Complete your Farmose order for delivery or pickup in Freetown.",
+  robots: { index: false, follow: false },
 };
 
 export default async function CheckoutPage() {

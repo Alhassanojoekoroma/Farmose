@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = incoming.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
   const title = "Farmose | Clean Local Food in Freetown";
-  const description = "Shop premium, pre-cleaned local produce, seafood and pantry staples from Farmose in Freetown, Sierra Leone.";
+  const description = "Shop clean local produce, seafood, meat and pantry staples from Farmose in Freetown, with home delivery, pickup and bulk ordering.";
   return {
     metadataBase: new URL(origin),
     title: { default: title, template: "%s | Farmose" },
@@ -17,17 +17,17 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: { icon: "/favicon.png", shortcut: "/favicon.png" },
     keywords: ["Farmose", "Freetown groceries", "Sierra Leone local produce", "clean seafood", "groundnut paste"],
     openGraph: {
-      title: "Farmose — Good food starts clean",
-      description: "Premium local produce, meticulously cleaned and ready for your kitchen.",
+      title: "Farmose — Clean local food, ready for your kitchen",
+      description,
       type: "website",
       locale: "en_SL",
-      images: [{ url: `${origin}/og.webp`, width: 1200, height: 630, alt: "Farmose — Good food starts clean" }],
+      images: [{ url: `${origin}/og.png`, width: 1200, height: 630, alt: "Farmose — Clean local food, ready for your kitchen" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Farmose — Good food starts clean",
-      description: "Clean local produce, ready for real life.",
-      images: [`${origin}/og.webp`],
+      title: "Farmose — Clean local food, ready for your kitchen",
+      description,
+      images: [`${origin}/og.png`],
     },
   };
 }

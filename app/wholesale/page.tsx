@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Wholesale Supply",
   description: "Clean local produce and seafood supply for restaurants, hotels and caterers in Freetown.",
+  alternates: { canonical: "/wholesale" },
 };
 
 export default async function WholesalePage() {

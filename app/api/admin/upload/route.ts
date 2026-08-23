@@ -17,7 +17,7 @@ function uploadError(message: string, status = 400) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdminApi("media");
+  const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
 
   try {

@@ -7,14 +7,15 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "vite build",
-    "build:next": "next build",
+    "build": "next build",
     "start": "next start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.2",
+    "cloudinary": "^2.10.0",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "react": "19.2.6",

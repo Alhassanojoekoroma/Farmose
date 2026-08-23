@@ -45,19 +45,12 @@ export function hasAdminPermission(role: AdminRole, permission: AdminPermission)
 export async function getAdminAccess(email: string, fallbackName = email): Promise<AdminSession | null> {
   const normalized = email.trim().toLowerCase();
   try { await ensureAdminUsersTable(); } catch { /* The configured owner can still sign in during a database outage. */ }
-  if (isAdminEmail(normalized)) {
-    return { email: normalized, displayName: fallbackName, fullName: fallbackName, role: "owner" };
-  }
+  if (isAdminEmail(normalized)) return { email: normalized, displayName: fallbackName, fullName: fallbackName, role: "owner" };
   try {
     const rows = await getDb().select().from(adminUsers).where(eq(adminUsers.email, normalized)).limit(1);
     const record = rows[0];
     if (!record?.active || !["editor", "orders"].includes(record.role)) return null;
-    return {
-      email: normalized,
-      displayName: record.displayName || fallbackName,
-      fullName: record.displayName || null,
-      role: record.role as AdminRole,
-    };
+    return { email: normalized, displayName: record.displayName || fallbackName, fullName: record.displayName || null, role: record.role as AdminRole };
   } catch {
     return null;
   }

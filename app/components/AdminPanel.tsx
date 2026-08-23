@@ -141,6 +141,8 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
       if (adminRole === "owner") void loadTeam();
     }, 0);
     return () => window.clearTimeout(timer);
+    // This is the one-time admin bootstrap; later refreshes are explicit actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveStaff(event: FormEvent) {

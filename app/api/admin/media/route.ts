@@ -18,7 +18,7 @@ function kindFor(asset: AssetObject) {
 }
 
 export async function GET() {
-  const auth = await requireAdminApi("media");
+  const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
   try {
     const bucket = (env as unknown as { MEDIA?: AssetBucket }).MEDIA;
