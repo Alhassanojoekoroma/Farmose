@@ -1,5 +1,7 @@
 import { readManagedProducts, readSiteTheme } from "./catalog-server";
 import { defaultTheme, products as fallbackProducts } from "./farmose-data";
+import { experienceProducts } from "./farmose-experience-products";
+import { selectExperienceCatalog } from "./experience-catalog";
 import { env } from "../lib/cloudflare-env";
 
 export async function readStorefront() {
@@ -9,5 +11,15 @@ export async function readStorefront() {
   } catch (error) {
     if (env.DB) console.error("Unable to read the managed storefront; using bundled content.", error);
     return { products: fallbackProducts, theme: defaultTheme };
+  }
+}
+
+export async function readExperienceStorefront() {
+  try {
+    const [products, theme] = await Promise.all([readManagedProducts(true), readSiteTheme()]);
+    return { ...selectExperienceCatalog(products, experienceProducts.map((product) => product.slug)), theme };
+  } catch (error) {
+    if (env.DB) console.error("Unable to read the Farmose experience catalog; using packaged products.", error);
+    return { products: experienceProducts, hiddenDesignSlugs: [], theme: defaultTheme };
   }
 }

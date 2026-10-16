@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { FarmoseSite } from "../components/FarmoseSite";
-import { readStorefront } from "../storefront-server";
+import { FarmoseExperience } from "../components/FarmoseExperience";
+import { readExperienceStorefront } from "../storefront-server";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Wholesale Supply",
-  description: "Clean local produce and seafood supply for restaurants, hotels and caterers in Freetown.",
+  title: "Contact Farmose",
+  description: "Contact Farmose in Freetown about products and bulk enquiries.",
   alternates: { canonical: "/wholesale" },
 };
 
 export default async function WholesalePage() {
-  const storefront = await readStorefront();
-  return <FarmoseSite view="wholesale" {...storefront} />;
+  const storefront = await readExperienceStorefront();
+  return <FarmoseExperience initialRoute="contacts" {...storefront} />;
 }

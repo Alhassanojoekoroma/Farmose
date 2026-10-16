@@ -8,9 +8,11 @@ import {
   Product,
   SiteTheme,
 } from "./farmose-data";
+import { experienceProducts } from "./farmose-experience-products";
 
 export type ManagedProduct = Product & {
   active: boolean;
+  siteVisible: boolean;
   sortOrder: number;
 };
 
@@ -43,6 +45,7 @@ async function ensureCatalogTables() {
       details text NOT NULL,
       features_json text DEFAULT '[]' NOT NULL,
       active integer DEFAULT true NOT NULL,
+      site_visible integer DEFAULT false NOT NULL,
       sort_order integer DEFAULT 0 NOT NULL,
       updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
@@ -69,6 +72,7 @@ async function ensureCatalogTables() {
   await ensureColumn("additional_images_json", "additional_images_json text DEFAULT '[]' NOT NULL");
   await ensureColumn("stock_quantity", "stock_quantity integer DEFAULT 0 NOT NULL");
   await ensureColumn("video", "video text DEFAULT '' NOT NULL");
+  await ensureColumn("site_visible", "site_visible integer DEFAULT false NOT NULL");
 }
 
 function rowToProduct(row: ProductRow): ManagedProduct {
@@ -108,6 +112,7 @@ function rowToProduct(row: ProductRow): ManagedProduct {
     details: row.details,
     features,
     active: row.active,
+    siteVisible: row.siteVisible,
     sortOrder: row.sortOrder,
   };
 }
@@ -116,18 +121,33 @@ export async function ensureCatalogSeeded() {
   await ensureCatalogTables();
   const db = getDb();
   const existing = await db.select({ slug: catalogProducts.slug }).from(catalogProducts).limit(1);
-  if (existing.length > 0) return;
+  if (existing.length === 0) {
+    const seedStatements = fallbackProducts.map((product, index) =>
+      db.insert(catalogProducts).values({
+        ...product,
+        imagePosition: product.imagePosition ?? "center",
+        featuresJson: JSON.stringify(product.features),
+        active: true,
+        siteVisible: false,
+        sortOrder: index,
+      }),
+    );
+    await Promise.all(seedStatements.map((statement) => statement));
+  }
 
-  const seedStatements = fallbackProducts.map((product, index) =>
-    db.insert(catalogProducts).values({
-      ...product,
-      imagePosition: product.imagePosition ?? "center",
-      featuresJson: JSON.stringify(product.features),
-      active: true,
-      sortOrder: index,
-    }),
-  );
-  await Promise.all(seedStatements.map((statement) => statement));
+  // Keep the former catalog intact. One-time design entries can then be edited
+  // by staff, and deleting one does not silently recreate it on the next visit.
+  const marker = await db.select({ key: siteSettings.key }).from(siteSettings).where(eq(siteSettings.key, "experienceCatalogSeededV1")).limit(1);
+  if (!marker.length) {
+    for (const product of experienceProducts) {
+      await db.insert(catalogProducts).values({
+        ...product,
+        imagePosition: "center",
+        featuresJson: JSON.stringify(product.features),
+      }).onConflictDoNothing();
+    }
+    await db.insert(siteSettings).values({ key: "experienceCatalogSeededV1", value: "1" }).onConflictDoNothing();
+  }
 }
 
 export async function readManagedProducts(includeInactive = false): Promise<ManagedProduct[]> {
@@ -161,7 +181,14 @@ export async function readSiteTheme(): Promise<SiteTheme> {
 
 export async function saveSiteTheme(theme: SiteTheme) {
   const db = getDb();
-  const entries = Object.entries(theme);
+  const entries = (Object.keys(defaultTheme) as Array<keyof SiteTheme>).map((key) => {
+    const fallback = defaultTheme[key];
+    const raw = theme[key];
+    const value = typeof fallback === "number"
+      ? (Number.isFinite(Number(raw)) ? Number(raw) : fallback)
+      : String(raw ?? fallback).slice(0, 4000);
+    return [key, value] as const;
+  });
   const seedStatements = entries.map(([key, value]) =>
     db
       .insert(siteSettings)
@@ -189,13 +216,14 @@ export async function saveManagedProduct(product: ManagedProduct) {
     rating: Number(product.rating) || 5, reviews: Number(product.reviews) || 0, description: String(product.description ?? ""),
     details: String(product.details ?? ""), featuresJson: JSON.stringify(Array.isArray(product.features) ? product.features : []),
     active: product.active === false ? 0 : 1, sortOrder: Number(product.sortOrder) || 0,
+    siteVisible: product.siteVisible === true ? 1 : 0,
   };
 
   await d1.prepare(`INSERT INTO catalog_products (
     slug, name, short_name, category, tag, price, unit, image, image_url,
     image_public_id, additional_images_json, stock_quantity, video, image_position,
-    color, rating, reviews, description, details, features_json, active, sort_order, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    color, rating, reviews, description, details, features_json, active, site_visible, sort_order, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(slug) DO UPDATE SET
     name = excluded.name, short_name = excluded.short_name, category = excluded.category,
     tag = excluded.tag, price = excluded.price, unit = excluded.unit, image = excluded.image,
@@ -204,11 +232,12 @@ export async function saveManagedProduct(product: ManagedProduct) {
     video = excluded.video, image_position = excluded.image_position, color = excluded.color,
     rating = excluded.rating, reviews = excluded.reviews, description = excluded.description,
     details = excluded.details, features_json = excluded.features_json, active = excluded.active,
+    site_visible = excluded.site_visible,
     sort_order = excluded.sort_order, updated_at = excluded.updated_at`).bind(
       values.slug, values.name, values.shortName, values.category, values.tag, values.price, values.unit,
       values.image, values.imageUrl, values.imagePublicId, values.additionalImagesJson, values.stockQuantity,
       values.video, values.imagePosition, values.color, values.rating, values.reviews, values.description,
-      values.details, values.featuresJson, values.active, values.sortOrder, now,
+      values.details, values.featuresJson, values.active, values.siteVisible, values.sortOrder, now,
     ).run();
 }
 

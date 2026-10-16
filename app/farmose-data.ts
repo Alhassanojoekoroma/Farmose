@@ -22,6 +22,17 @@ export type Product = {
 };
 
 export type SiteTheme = {
+  experienceLogoImage: string;
+  experienceArc: string;
+  experienceProductionTitle: string;
+  experienceProductionBody: string;
+  experienceExperienceTitle: string;
+  experienceExperienceBody: string;
+  experienceAboutTitle: string;
+  experienceAboutBody: string;
+  experienceContactHeading: string;
+  experiencePrivacyText: string;
+  experienceEmail: string;
   primaryColor: string;
   backgroundColor: string;
   accentColor: string;
@@ -60,6 +71,17 @@ export type SiteTheme = {
 };
 
 export const defaultTheme: SiteTheme = {
+  experienceLogoImage: "/farmose/img/logo.png",
+  experienceArc: "From our farm, to your table. ",
+  experienceProductionTitle: "The bounty of our land",
+  experienceProductionBody: "Our days are made of groundnuts, sesame, peppers, palm fruit and honey. We grow, grind, press and pack in Sierra Leone with the same care, from the first harvest to the last jar. This is Farmose.",
+  experienceExperienceTitle: "Experience Farmose",
+  experienceExperienceBody: "Come closer to the people and places behind every jar. These are sample experiences: replace them with your real offers.",
+  experienceAboutTitle: "About Farmose",
+  experienceAboutBody: "Farmose grows, mills and packs Sierra Leonean staples: groundnut paste, raw honey, palm oil and the spices that every kitchen needs. Everything we sell is made in Sierra Leone.",
+  experienceContactHeading: "Do you have a question or would you like to find out more? Call us, we would be delighted to tell you about Farmose.",
+  experiencePrivacyText: "This is a demo build of the Farmose site. It sets no cookies and collects no data. Replace this text with your real privacy and cookie policy.",
+  experienceEmail: "info@greenagventuresl.com",
   primaryColor: "#063f2f",
   backgroundColor: "#e6fcd5",
   accentColor: "#ff7a2f",

@@ -41,6 +41,7 @@ export const catalogProducts = sqliteTable("catalog_products", {
   details: text("details").notNull(),
   featuresJson: text("features_json").notNull().default("[]"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  siteVisible: integer("site_visible", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

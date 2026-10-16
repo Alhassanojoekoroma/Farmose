@@ -36,7 +36,7 @@ type MediaAsset = {
   uploaded: string;
 };
 
-type ThemeImageKey = "heroImage" | "logoImage" | "seafoodImage" | "pantryImage" | "produceImage" | "standardImage";
+type ThemeImageKey = "experienceLogoImage" | "heroImage" | "logoImage" | "seafoodImage" | "pantryImage" | "produceImage" | "standardImage";
 
 async function readApiResponse<T extends object>(response: Response): Promise<T & { error?: string }> {
   const body = await response.text();
@@ -68,6 +68,7 @@ const blankProduct = (sortOrder: number): ManagedProduct => ({
   details: "",
   features: ["Locally sourced", "Carefully prepared", "Kitchen ready"],
   active: true,
+  siteVisible: true,
   sortOrder,
 });
 
@@ -312,7 +313,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
       });
       const result = await readApiResponse<Record<string, never>>(response);
       if (!response.ok) throw new Error(result.error || "The storefront appearance could not be saved.");
-      setNotice("Storefront appearance published.");
+      setNotice("Site content published.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The storefront appearance could not be saved.");
     } finally {
@@ -351,13 +352,13 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     <main className="admin-shell">
       <aside className="admin-sidebar">
         <a className="admin-brand" href="/" aria-label="Open Farmose storefront">
-          <img src={theme.logoImage} alt="Farmose" />
+          <img src={theme.experienceLogoImage} alt="Farmose" />
           <span>Store manager</span>
         </a>
         <nav aria-label="Administration sections">
           {adminRole !== "orders" && <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>}
           {adminRole !== "orders" && <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Content</button>}
-          <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>
+          {adminRole !== "editor" && <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>}
           {adminRole !== "orders" && <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>}
           {adminRole === "owner" && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Staff</button>}
         </nav>
@@ -379,12 +380,12 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
               {products.map((product) => (
                 <button key={product.slug} className={selectedSlug === product.slug ? "active" : ""} onClick={() => selectProduct(product)}>
                   <span style={{ background: product.color }}><img src={product.image} alt="" /></span>
-                  <i><strong>{product.shortName}</strong><small>{money(product.price)} · {product.active ? "Live" : "Hidden"}</small></i>
+                  <i><strong>{product.shortName}</strong><small>{money(product.price)} · {product.siteVisible ? "New site" : "Legacy"} · {product.active ? "Available" : "Unavailable"}</small></i>
                 </button>
               ))}
             </section>
             <form className="admin-editor" onSubmit={saveProduct}>
-              <div className="admin-section-title"><div><p>{selectedSlug ? "EDIT PRODUCT" : "NEW PRODUCT"}</p><h2>{draft.name || "Untitled product"}</h2></div><label className="admin-switch"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft("active", event.target.checked)} /><span>Visible in store</span></label></div>
+              <div className="admin-section-title"><div><p>{selectedSlug ? "EDIT PRODUCT" : "NEW PRODUCT"}</p><h2>{draft.name || "Untitled product"}</h2></div><label className="admin-switch"><input type="checkbox" checked={draft.siteVisible} onChange={(event) => updateDraft("siteVisible", event.target.checked)} /><span>Show on new site</span></label></div>
               <div className="admin-product-preview" style={{ background: draft.color }}><span>{draft.tag || "PRODUCT"}</span><img src={draft.image} alt="Product preview" /><b>{money(Number(draft.price) || 0)}</b></div>
               <div className="admin-form-grid">
                 <label><span>Product name</span><input required value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} /></label>
@@ -393,14 +394,16 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
                 <label><span>Category</span><select value={draft.category} onChange={(event) => updateDraft("category", event.target.value as Product["category"])}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
                 <label><span>Price (Le)</span><input required min="0" step="0.01" type="number" value={draft.price} onChange={(event) => updateDraft("price", Number(event.target.value))} /></label>
                 <label><span>Unit</span><input required value={draft.unit} onChange={(event) => updateDraft("unit", event.target.value)} placeholder="e.g. 950 g jar" /></label>
-                <label><span>Card label</span><input value={draft.tag} onChange={(event) => updateDraft("tag", event.target.value.toUpperCase())} /></label>
+                <label><span>{draft.slug.startsWith("pantry-") ? "Product type" : "Card label"}</span><input value={draft.tag} onChange={(event) => updateDraft("tag", event.target.value.toUpperCase())} /></label>
                 <label><span>Card background</span><input type="color" value={draft.color} onChange={(event) => updateDraft("color", event.target.value)} /></label>
                 <label><span>Display order</span><input type="number" value={draft.sortOrder} onChange={(event) => updateDraft("sortOrder", Number(event.target.value))} /></label>
+                <label><span>Available for enquiry</span><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft("active", event.target.checked)} /></label>
+                <label><span>Stock quantity (0 = untracked)</span><input type="number" min="0" value={draft.stockQuantity ?? 0} onChange={(event) => updateDraft("stockQuantity", Number(event.target.value))} /></label>
                 <label><span>Image position</span><select value={draft.imagePosition || "center"} onChange={(event) => updateDraft("imagePosition", event.target.value)}><option>center</option><option>top</option><option>bottom</option><option>left</option><option>right</option></select></label>
               </div>
-              <label className="admin-field"><span>Short card description</span><textarea required rows={3} value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} /></label>
-              <label className="admin-field"><span>Product page description</span><textarea required rows={4} value={draft.details} onChange={(event) => updateDraft("details", event.target.value)} /></label>
-              <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>Feature {index + 1}</span><input value={draft.features[index] || ""} onChange={(event) => updateDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
+              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Product description" : "Short card description"}</span><textarea required rows={3} value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} /></label>
+              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Pack format" : "Product page description"}</span><textarea required rows={4} value={draft.details} onChange={(event) => updateDraft("details", event.target.value)} /></label>
+              <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>{draft.slug.startsWith("pantry-") ? ["Serving ideas", "Storage", "Product fact"][index] : `Feature ${index + 1}`}</span><input value={draft.features[index] || ""} onChange={(event) => updateDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
               <div className="admin-upload"><div><strong>Product photos</strong><small>Select one or several images directly from this device. Files up to 12 MB are uploaded safely in small parts.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose photos from device"}</label></div>
               <div className="admin-upload"><div><strong>Product video</strong><small>Choose an MP4 or WebM directly from this device (up to 40 MB).</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Choose video from device"}</label>{draft.video && <button type="button" className="admin-clear-media" onClick={() => updateDraft("video", "")}>Remove selected video</button>}</div>
               <section className="admin-media-picker" aria-label="Product media library">
@@ -416,60 +419,27 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         )}
 
         {!loading && tab === "appearance" && (
-          <form className="appearance-layout" onSubmit={saveTheme}>
+          <form className="appearance-layout experience-settings" onSubmit={saveTheme}>
             <section className="appearance-controls">
-              <div className="admin-section-title"><div><p>VISUAL SYSTEM</p><h2>Colours & typography</h2></div></div>
-              <div className="color-controls">
-                {(["primaryColor", "backgroundColor", "accentColor", "highlightColor"] as const).map((key) => <label key={key}><input type="color" value={theme[key]} onChange={(event) => setTheme({ ...theme, [key]: event.target.value })} /><span>{key.replace("Color", "").replace(/^./, (letter) => letter.toUpperCase())}</span><code>{theme[key]}</code></label>)}
-              </div>
-              <div className="admin-form-grid">
-                <label><span>Heading font</span><select value={theme.headingFont} onChange={(event) => setTheme({ ...theme, headingFont: event.target.value })}><option value="Georgia, 'Times New Roman', serif">Georgia</option><option value="'Times New Roman', Times, serif">Times New Roman</option><option value="Arial, Helvetica, sans-serif">Arial</option></select></label>
-                <label><span>Body font</span><select value={theme.bodyFont} onChange={(event) => setTheme({ ...theme, bodyFont: event.target.value })}><option value="Arial, Helvetica, sans-serif">Arial</option><option value="Verdana, Geneva, sans-serif">Verdana</option><option value="Georgia, 'Times New Roman', serif">Georgia</option></select></label>
-                <label><span>Body size ({theme.baseFontSize}px)</span><input type="range" min="14" max="20" value={theme.baseFontSize} onChange={(event) => setTheme({ ...theme, baseFontSize: Number(event.target.value) })} /></label>
-                <label><span>Headline size ({theme.headingMaxSize}px)</span><input type="range" min="56" max="76" value={theme.headingMaxSize} onChange={(event) => setTheme({ ...theme, headingMaxSize: Number(event.target.value) })} /></label>
-                <label><span>Button roundness ({theme.buttonRadius}px)</span><input type="range" min="4" max="999" value={theme.buttonRadius} onChange={(event) => setTheme({ ...theme, buttonRadius: Number(event.target.value) })} /></label>
-              </div>
-              <div className="admin-section-title copy-title"><div><p>HOME PAGE</p><h2>Message & hero</h2></div></div>
-              <label className="admin-field"><span>Announcement bar</span><input value={theme.announcement} onChange={(event) => setTheme({ ...theme, announcement: event.target.value })} /></label>
-              <label className="admin-field"><span>Hero headline</span><input value={theme.heroTitle} onChange={(event) => setTheme({ ...theme, heroTitle: event.target.value })} /></label>
-              <label className="admin-field"><span>Emphasised words</span><input value={theme.heroEmphasis} onChange={(event) => setTheme({ ...theme, heroEmphasis: event.target.value })} /></label>
-              <label className="admin-field"><span>Hero supporting text</span><textarea rows={4} value={theme.heroBody} onChange={(event) => setTheme({ ...theme, heroBody: event.target.value })} /></label>
-              {themeImageControl("Hero image", "heroImage")}
-              <div className="admin-section-title copy-title"><div><p>BRAND & CONTACT</p><h2>Logo and WhatsApp</h2></div></div>
-              {themeImageControl("Logo image", "logoImage")}
-              <label className="admin-field"><span>WhatsApp number</span><input type="tel" value={theme.whatsappNumber} onChange={(event) => setTheme({ ...theme, whatsappNumber: event.target.value })} placeholder="+232 79 529291" /></label>
-              <div className="admin-section-title copy-title"><div><p>HOME PAGE CATEGORIES</p><h2>Clean market cards</h2></div></div>
-              <label className="admin-field"><span>Section heading</span><input value={theme.categoryHeading} onChange={(event) => setTheme({ ...theme, categoryHeading: event.target.value })} /></label>
-              <div className="admin-form-grid">
-                <label><span>Seafood title</span><input value={theme.seafoodTitle} onChange={(event) => setTheme({ ...theme, seafoodTitle: event.target.value })} /></label>
-                <label><span>Seafood caption</span><input value={theme.seafoodCaption} onChange={(event) => setTheme({ ...theme, seafoodCaption: event.target.value })} /></label>
-                {themeImageControl("Seafood image (blank uses colour)", "seafoodImage")}
-                <label><span>Pantry title</span><input value={theme.pantryTitle} onChange={(event) => setTheme({ ...theme, pantryTitle: event.target.value })} /></label>
-                <label><span>Pantry caption</span><input value={theme.pantryCaption} onChange={(event) => setTheme({ ...theme, pantryCaption: event.target.value })} /></label>
-                {themeImageControl("Pantry image (blank uses colour)", "pantryImage")}
-                <label><span>Produce title</span><input value={theme.produceTitle} onChange={(event) => setTheme({ ...theme, produceTitle: event.target.value })} /></label>
-                <label><span>Produce caption</span><input value={theme.produceCaption} onChange={(event) => setTheme({ ...theme, produceCaption: event.target.value })} /></label>
-                {themeImageControl("Produce image", "produceImage")}
-              </div>
-              <div className="admin-section-title copy-title"><div><p>FARMOSE STANDARD</p><h2>Process section</h2></div></div>
-              <label className="admin-field"><span>Section label</span><input value={theme.standardEyebrow} onChange={(event) => setTheme({ ...theme, standardEyebrow: event.target.value })} /></label>
-              <label className="admin-field"><span>Heading</span><input value={theme.standardTitle} onChange={(event) => setTheme({ ...theme, standardTitle: event.target.value })} /></label>
-              <label className="admin-field"><span>Emphasised heading</span><input value={theme.standardEmphasis} onChange={(event) => setTheme({ ...theme, standardEmphasis: event.target.value })} /></label>
-              <label className="admin-field"><span>Supporting text</span><textarea rows={3} value={theme.standardBody} onChange={(event) => setTheme({ ...theme, standardBody: event.target.value })} /></label>
-              {themeImageControl("Section image", "standardImage")}
-              <div className="admin-section-title copy-title"><div><p>VISIT & CONTACT</p><h2>Store information</h2></div></div>
-              <label className="admin-field"><span>Store address</span><input value={theme.storeAddress} onChange={(event) => setTheme({ ...theme, storeAddress: event.target.value })} /></label>
-              <label className="admin-field"><span>Landmark</span><input value={theme.storeLandmark} onChange={(event) => setTheme({ ...theme, storeLandmark: event.target.value })} /></label>
-              <label className="admin-field"><span>Opening hours / visitor note</span><input value={theme.storeHours} onChange={(event) => setTheme({ ...theme, storeHours: event.target.value })} /></label>
-              <label className="admin-field"><span>Directions link</span><input type="url" value={theme.directionsUrl} onChange={(event) => setTheme({ ...theme, directionsUrl: event.target.value })} /></label>
+              <div className="admin-section-title"><div><p>THE NEW FARMOSE SITE</p><h2>Brand and contact</h2><small>These fields update the supplied storefront design.</small></div></div>
+              {themeImageControl("Site logo", "experienceLogoImage")}
+              <label className="admin-field"><span>WhatsApp number</span><input type="tel" value={theme.whatsappNumber} onChange={(event) => setTheme({ ...theme, whatsappNumber: event.target.value })} /></label>
+              <label className="admin-field"><span>Contact email</span><input type="email" value={theme.experienceEmail} onChange={(event) => setTheme({ ...theme, experienceEmail: event.target.value })} /></label>
+              <label className="admin-field"><span>Address</span><input value={theme.storeAddress} onChange={(event) => setTheme({ ...theme, storeAddress: event.target.value })} /></label>
+              <label className="admin-field"><span>Contact heading</span><textarea rows={3} value={theme.experienceContactHeading} onChange={(event) => setTheme({ ...theme, experienceContactHeading: event.target.value })} /></label>
+
+              <div className="admin-section-title copy-title"><div><p>PAGE COPY</p><h2>Headings and introductions</h2></div></div>
+              <label className="admin-field"><span>Homepage arc text</span><input value={theme.experienceArc} onChange={(event) => setTheme({ ...theme, experienceArc: event.target.value })} /></label>
+              <label className="admin-field"><span>Production heading</span><input value={theme.experienceProductionTitle} onChange={(event) => setTheme({ ...theme, experienceProductionTitle: event.target.value })} /></label>
+              <label className="admin-field"><span>Production introduction</span><textarea rows={3} value={theme.experienceProductionBody} onChange={(event) => setTheme({ ...theme, experienceProductionBody: event.target.value })} /></label>
+              <label className="admin-field"><span>Experience heading</span><input value={theme.experienceExperienceTitle} onChange={(event) => setTheme({ ...theme, experienceExperienceTitle: event.target.value })} /></label>
+              <label className="admin-field"><span>Experience introduction</span><textarea rows={3} value={theme.experienceExperienceBody} onChange={(event) => setTheme({ ...theme, experienceExperienceBody: event.target.value })} /></label>
+              <label className="admin-field"><span>About heading</span><input value={theme.experienceAboutTitle} onChange={(event) => setTheme({ ...theme, experienceAboutTitle: event.target.value })} /></label>
+              <label className="admin-field"><span>About introduction</span><textarea rows={3} value={theme.experienceAboutBody} onChange={(event) => setTheme({ ...theme, experienceAboutBody: event.target.value })} /></label>
+              <label className="admin-field"><span>Privacy notice</span><textarea rows={4} value={theme.experiencePrivacyText} onChange={(event) => setTheme({ ...theme, experiencePrivacyText: event.target.value })} /></label>
               <datalist id="farmose-media-images">{media.filter((asset) => asset.kind === "image").map((asset) => <option key={asset.key} value={asset.url} />)}</datalist>
-              <div className="admin-actions"><button type="button" onClick={() => setTheme(defaultTheme)}>Reset draft</button><button className="primary" type="submit" disabled={saving}>{saving ? "Publishing…" : "Publish appearance"}</button></div>
+              <div className="admin-actions"><button className="primary" type="submit" disabled={saving}>{saving ? "Publishing…" : "Publish site content"}</button></div>
             </section>
-            <aside className="appearance-preview" style={{ background: theme.highlightColor, fontFamily: theme.bodyFont, fontSize: theme.baseFontSize }}>
-              <div className="appearance-preview-nav" style={{ background: theme.backgroundColor }}><span>☰</span><img src={theme.logoImage} alt="" /><span>▢</span></div>
-              <div className="appearance-preview-copy"><b style={{ background: theme.accentColor }}>CLEAN LOCAL FOOD</b><h2 style={{ fontFamily: theme.headingFont, fontSize: Math.min(theme.headingMaxSize * .55, 48) }}>{theme.heroTitle} <em>{theme.heroEmphasis}</em></h2><p>{theme.heroBody}</p><button style={{ background: theme.primaryColor, borderRadius: theme.buttonRadius }}>Shop local produce</button></div>
-              <img className="appearance-preview-image" src={theme.heroImage} alt="" />
-            </aside>
           </form>
         )}
 
@@ -503,7 +473,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         {!loading && tab === "orders" && (
           <section className="admin-orders">
             <div className="admin-section-title"><div><p>RECENT CHECKOUTS</p><h2>Orders from the storefront</h2></div></div>
-            {orders.length === 0 ? <div className="admin-empty"><h3>No orders yet.</h3><p>New digital checkouts will appear here.</p></div> : orders.map((order) => (
+            {orders.length === 0 ? <div className="admin-empty"><h3>No past checkouts.</h3><p>The new storefront sends enquiries directly through WhatsApp.</p></div> : orders.map((order) => (
               <article key={order.id}><div><strong>{order.orderNumber}</strong><small>{order.createdAt}</small></div><div><b>{order.customerName}</b><small>{order.phone} · {order.area}</small></div><div><b>{money(order.total)}</b><small>{order.paymentMethod}</small></div><select value={order.status} onChange={(event) => void updateOrderStatus(order.id, event.target.value)}><option value="new">New</option><option value="confirmed">Confirmed</option><option value="preparing">Preparing</option><option value="out-for-delivery">Out for delivery</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></article>
             ))}
           </section>

@@ -362,7 +362,7 @@ em { font-style: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; transition: none !important; }
+  .admin-shell *, .site-shell * { scroll-behavior: auto !important; transition: none !important; }
 }
 
 /* Farmose private administration */
@@ -447,6 +447,7 @@ em { font-style: normal; }
 .admin-actions .primary { border-color: #063f2f; background: #063f2f; color: white; }
 .admin-actions .danger { margin-right: auto; border-color: #e6bbb5; color: #9b3025; }
 .appearance-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 440px); gap: 22px; align-items: start; }
+.appearance-layout.experience-settings { grid-template-columns: minmax(0, 900px); }
 .color-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .color-controls label { padding: 10px; border: 1px solid #d2d8d4; border-radius: 10px; }
 .color-controls input { height: 46px; }
@@ -520,7 +521,7 @@ em { font-style: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+  .admin-shell *, .site-shell * { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }
 
 /* Editorial storefront direction. */
