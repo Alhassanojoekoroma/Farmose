@@ -84,7 +84,7 @@ export function AdminLogin({ initialEmail = "", verificationRequired = false }: 
       <div className="admin-login-card">
         <img src="/farmose/img/logo.png" alt="Farmose" width={80} height={61} />
         <p>PRIVATE FARMOSE WORKSPACE</p>
-        <h1>{mode === "register" ? "Create your staff login." : mode === "verify" ? "Verify your email." : "Sign in to manage Farmose."}</h1>
+        <h1>{mode === "register" ? "Create your Farmose login." : mode === "verify" ? "Verify your email." : "Sign in to manage Farmose."}</h1>
         <p>Only the owner and approved staff can access this area.</p>
         <form className="admin-login-form" onSubmit={submit}>
           {mode === "register" && <label>Full name<input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} /></label>}
@@ -98,7 +98,7 @@ export function AdminLogin({ initialEmail = "", verificationRequired = false }: 
         </form>
         {mode === "verify"
           ? <button className="admin-login-link" type="button" disabled={busy} onClick={() => void sendCode()}>Send another code</button>
-          : <button className="admin-login-link" type="button" onClick={() => { setMode(mode === "sign-in" ? "register" : "sign-in"); setError(""); setMessage(""); }}>{mode === "sign-in" ? "First time? Create an approved staff account" : "Already registered? Sign in"}</button>}
+          : <button className="admin-login-link" type="button" onClick={() => { setMode(mode === "sign-in" ? "register" : "sign-in"); setError(""); setMessage(""); }}>{mode === "sign-in" ? "First time? Create your Farmose login" : "Already registered? Sign in"}</button>}
         {verificationRequired && <SignOutButton />}
         <Link href="/">Return to the storefront</Link>
       </div>
