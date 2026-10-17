@@ -1,115 +1,73 @@
-# vinext-starter
+# Farmose
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Farmose is a Next.js storefront and staff workspace hosted on Vercel. Its live
+catalog, appearance settings, scheduled news, staff permissions, and historical
+orders are stored in Neon Postgres. Images and videos are stored in Neon Object
+Storage. The public purchase path remains a WhatsApp enquiry; `/api/orders`
+returns HTTP 410 and cannot create orders.
 
-## Prerequisites
+## Development
 
-- Node.js `>=22.13.0`
+Use Node.js 22.13 or later. Copy `.env.example` to `.env.local`, fill the
+server-only values, then run:
 
-## Quick Start
-
-```bash
+```sh
 npm install
 npm run dev
+npm test
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+`DATABASE_URL` is the pooled Neon connection string. `NEON_AUTH_BASE_URL` is
+the Neon Auth endpoint for the **same** branch. Generate a fresh random value
+of at least 32 bytes for `NEON_AUTH_COOKIE_SECRET`. The AWS fields are scoped
+Neon Object Storage credentials for the `farmose-media` bucket. Keep all of
+these out of the repository and client code.
 
-## Included Shape
+## Administration
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+The owner signs in at `/admin` with an email in `FARMOSE_OWNER_EMAILS`. For the
+first sign-in, choose **Create account** and verify the email address. No
+password is embedded in the code or issued by the server. The owner can add an
+approved staff email under **Team**, choose a preset role or custom permissions,
+and deactivate or remove access immediately. Staff create their own password
+and verify their email. Server routes enforce each permission; hiding a tab in
+the browser is not the access control.
 
-## Workspace Auth Headers
+| Permission | Scope |
+| --- | --- |
+| Products | Edit the catalog and product visibility |
+| Content | Edit site appearance and business details |
+| Media | Upload and list media |
+| Orders | See historical orders and update their status |
+| News & offers | Publish or schedule promotions, news, visits, and programs; upload post images |
+| Team | Owner only: approve staff and edit permissions |
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+Posts have a start time, optional end time, and published switch. The public
+`/updates` page and home link show published posts only during their chosen
+window. The server evaluates dates on each request; the public page cannot
+expose drafts or future posts. Times entered in the admin form are converted
+from the editor's local time to UTC for storage. Public dates are displayed in
+Freetown time.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Data migration
 
-Treat the full name as optional and fall back to email when it is absent:
+The schema is versioned in `scripts/migrations/001_vercel.sql`. For a one-time
+move from the former Sites D1 database, export the four tables into an ignored
+`work/d1-export.json` file with arrays named `catalog_products`,
+`site_settings`, `orders`, and `admin_users`. `scripts/import-d1.mjs` applies
+the migration, copies referenced `/api/media` assets from the old public site
+to `farmose-media`, and imports product, setting, and historical order rows.
+It is idempotent on existing primary keys and never imports old Sites identity
+records as Vercel login credentials. Feed connection and storage credentials
+as JSON on stdin; never commit the export or credentials.
 
-```tsx
-import { headers } from "next/headers";
+## Deployment
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Vercel Environment Variables
-
-To make the admin product image upload flow work end to end in Vercel, add these values in Vercel Dashboard > Project > Settings > Environment Variables:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
-
-Use the same values for Production, Preview, and Development if you want local and deployed environments to behave the same way. The `NEXT_PUBLIC_` variables are exposed to the browser, while the Supabase service-role key and Cloudinary secret must remain server-only.
-
-After saving the variables, trigger a new Vercel deployment so the serverless routes can pick them up.
-
-If Supabase is new, make sure the `products` table exists with the columns used by the admin route (for example `slug`, `name`, `short_name`, `category`, `tag`, `price`, `unit`, `image_url`, `image_public_id`, `additional_images`, `stock_quantity`, `description`, `details`, `features`, `active`, `sort_order`, `created_at`, `updated_at`).
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+The existing Vercel project uses `npm run build` (`next build`). Set all eight
+server-only environment variables from `.env.example` for Production, deploy
+the GitHub `main` branch, and test the Vercel URL before changing `farmose.com`.
+Allow the Vercel and custom domains in Neon Auth's trusted domains. Preview
+deployments need their own Neon branch, Auth endpoint, media credentials, and
+owner allowlist before testing write actions. The former Sites configuration
+is retained only as a rollback source while the hosting change is verified.

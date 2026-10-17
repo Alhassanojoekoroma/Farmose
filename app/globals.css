@@ -547,3 +547,38 @@ em { font-style: normal; }
   .cylinder-card { width: clamp(178px, 54vw, 225px); border-width: 6px; transform: rotateY(calc(var(--carousel-index) * var(--carousel-angle))) translateZ(clamp(135px, 41vw, 180px)); }
   .hero-trust { margin-top: -5px; padding-bottom: 34px; gap: 11px 22px; font-size: 13px; }
 }
+
+.admin-login-card { width: min(100%, 560px); }
+.admin-login-card > img { margin: 0 auto 12px; object-fit: contain; }
+.admin-login-form { margin-top: 24px; display: grid; gap: 15px; text-align: left; }
+.admin-login-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.admin-login-form input { min-height: 46px; padding: 10px 12px; border: 1px solid #92a99b; border-radius: 8px; background: white; color: #15261d; }
+.admin-login-form .primary { min-height: 46px; border: 0; border-radius: 9px; background: #063f2f; color: white; font-weight: 700; cursor: pointer; }
+.admin-login-form .primary:disabled { opacity: .6; }
+.admin-login-error { color: #9b3025; }
+.admin-login-message { color: #063f2f; }
+.admin-login-link, .admin-denied button { margin-top: 14px; border: 0; background: none; color: #063f2f; text-decoration: underline; cursor: pointer; }
+.admin-account button { margin-top: 8px; padding: 0; color: #c7ec86; text-align: left; font-size: 13px; }
+.admin-updates > .admin-section-title { margin-bottom: 20px; }
+.admin-updates > .admin-section-title a { text-decoration: underline; color: #063f2f; }
+.admin-updates-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 22px; align-items: start; }
+.admin-update-editor { display: grid; gap: 16px; }
+.admin-update-editor > label { margin: 0; }
+.admin-update-editor > small { color: #617068; }
+.admin-update-editor .admin-upload { margin: 0; }
+.admin-update-list article { grid-template-columns: minmax(0, 1fr) auto; }
+.admin-update-list-actions, .admin-staff-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-update-list-actions button, .admin-staff-actions button { padding: 9px 12px; border: 1px solid #bdc7c0; border-radius: 8px; background: white; cursor: pointer; }
+.admin-update-list-actions .danger { border-color: #e6bbb5; color: #9b3025; }
+.admin-permissions { grid-column: 1/-1; padding: 14px; border: 1px solid #bdc7c0; border-radius: 10px; display: flex; flex-wrap: wrap; gap: 10px 20px; }
+.admin-permissions legend { padding: 0 6px; font-size: 12px; font-weight: 800; color: #4e5a53; }
+.admin-permissions label { display: flex; align-items: center; flex-direction: row; gap: 7px; font-size: 13px; }
+.admin-permissions input, .admin-team-form .admin-switch input { width: 18px; min-height: 18px; accent-color: #063f2f; }
+.admin-team-form .admin-actions { grid-column: 1/-1; }
+.admin-team-form .admin-switch { display: flex; align-items: center; }
+@media (max-width: 900px) { .admin-updates-layout { grid-template-columns: 1fr; } }
+@media (max-width: 650px) {
+  .admin-team-list article, .admin-update-list article { grid-template-columns: 1fr; }
+  .admin-permissions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-permissions legend { grid-column: 1/-1; }
+}

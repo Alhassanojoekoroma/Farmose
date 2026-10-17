@@ -1,38 +1,19 @@
-import { env } from "../../../../lib/cloudflare-env";
 import { requireAdminApi } from "../../../admin-auth";
-
-type AssetObject = {
-  key: string;
-  size: number;
-  uploaded?: Date;
-  httpMetadata?: { contentType?: string };
-};
-
-type AssetBucket = {
-  list: (options?: { prefix?: string; limit?: number }) => Promise<{ objects: AssetObject[] }>;
-};
-
-function kindFor(asset: AssetObject) {
-  if (asset.httpMetadata?.contentType?.startsWith("video/")) return "video";
-  return /\.(mp4|webm|mov)$/i.test(asset.key) ? "video" : "image";
-}
+import { query } from "../../../../lib/postgres";
 
 export async function GET() {
   const auth = await requireAdminApi("media");
   if (auth instanceof Response) return auth;
   try {
-    const bucket = (env as unknown as { MEDIA?: AssetBucket }).MEDIA;
-    if (!bucket) return Response.json({ error: "Media storage is not available." }, { status: 503 });
-
-    const result = await bucket.list({ prefix: "farmose/", limit: 120 });
-    const media = result.objects
-      .filter((asset) => asset.key.startsWith("farmose/"))
-      .sort((left, right) => Number(right.uploaded ?? 0) - Number(left.uploaded ?? 0))
-      .map((asset) => ({ key: asset.key, size: asset.size, uploaded: asset.uploaded?.toISOString() ?? "", kind: kindFor(asset), url: `/api/media?key=${encodeURIComponent(asset.key)}` }));
-    return Response.json({ media });
-  } catch (reason) {
-    const message = reason instanceof Error ? reason.message : "An unknown storage error occurred.";
-    console.error("Farmose media library failed", reason);
-    return Response.json({ error: `The media library is unavailable: ${message}` }, { status: 500 });
+    const rows = await query<{ key: string; url: string; kind: "image" | "video"; size_bytes: string; uploaded_at: Date }>(
+      "SELECT key, url, kind, size_bytes, uploaded_at FROM media_assets ORDER BY uploaded_at DESC LIMIT 120",
+    );
+    return Response.json({ media: rows.map((row) => ({
+      key: row.key, url: row.url, kind: row.kind, size: Number(row.size_bytes),
+      uploaded: row.uploaded_at.toISOString(),
+    })) });
+  } catch (error) {
+    console.error("Farmose media listing failed", error);
+    return Response.json({ error: "The media library is temporarily unavailable." }, { status: 503 });
   }
 }

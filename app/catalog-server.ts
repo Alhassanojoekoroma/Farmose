@@ -1,14 +1,5 @@
-import { asc, eq } from "drizzle-orm";
-import { env } from "../lib/cloudflare-env";
-import { getDb } from "../db";
-import { catalogProducts, siteSettings } from "../db/schema";
-import {
-  defaultTheme,
-  products as fallbackProducts,
-  Product,
-  SiteTheme,
-} from "./farmose-data";
-import { experienceProducts } from "./farmose-experience-products";
+import { query } from "../lib/postgres";
+import { defaultTheme, type Product, type SiteTheme } from "./farmose-data";
 
 export type ManagedProduct = Product & {
   active: boolean;
@@ -16,156 +7,68 @@ export type ManagedProduct = Product & {
   sortOrder: number;
 };
 
-type ProductRow = typeof catalogProducts.$inferSelect;
+type ProductRow = {
+  slug: string; name: string; short_name: string; category: string; tag: string;
+  price: string; unit: string; image: string; image_url: string | null;
+  image_public_id: string | null; additional_images_json: string[] | string;
+  stock_quantity: number; video: string; image_position: string; color: string;
+  rating: string; reviews: number; description: string; details: string;
+  features_json: string[] | string; active: boolean; site_visible: boolean;
+  sort_order: number;
+};
 
-async function ensureCatalogTables() {
-  const d1 = env.DB;
-  if (!d1) return;
-  const database = d1;
-  await database.batch([
-    database.prepare(`CREATE TABLE IF NOT EXISTS catalog_products (
-      slug text PRIMARY KEY NOT NULL,
-      name text NOT NULL,
-      short_name text NOT NULL,
-      category text NOT NULL,
-      tag text NOT NULL,
-      price real NOT NULL,
-      unit text NOT NULL,
-      image text NOT NULL,
-      image_url text,
-      image_public_id text,
-      additional_images_json text DEFAULT '[]' NOT NULL,
-      stock_quantity integer DEFAULT 0 NOT NULL,
-      video text DEFAULT '' NOT NULL,
-      image_position text DEFAULT 'center' NOT NULL,
-      color text NOT NULL,
-      rating real DEFAULT 5 NOT NULL,
-      reviews integer DEFAULT 0 NOT NULL,
-      description text NOT NULL,
-      details text NOT NULL,
-      features_json text DEFAULT '[]' NOT NULL,
-      active integer DEFAULT true NOT NULL,
-      site_visible integer DEFAULT false NOT NULL,
-      sort_order integer DEFAULT 0 NOT NULL,
-      updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
-    )`),
-    database.prepare(`CREATE TABLE IF NOT EXISTS site_settings (
-      key text PRIMARY KEY NOT NULL,
-      value text NOT NULL,
-      updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
-    )`),
-  ]);
-
-  async function ensureColumn(name: string, definition: string) {
-    const productColumns = await database.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
-    if (productColumns.results.some((column) => column.name === name)) return;
-    try {
-      await database.prepare(`ALTER TABLE catalog_products ADD COLUMN ${definition}`).run();
-    } catch (error) {
-      const refreshedColumns = await database.prepare("PRAGMA table_info(catalog_products)").all<{ name: string }>();
-      if (!refreshedColumns.results.some((column) => column.name === name)) throw error;
-    }
+function stringList(value: string[] | string): string[] {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
   }
-
-  await ensureColumn("image_url", "image_url text");
-  await ensureColumn("image_public_id", "image_public_id text");
-  await ensureColumn("additional_images_json", "additional_images_json text DEFAULT '[]' NOT NULL");
-  await ensureColumn("stock_quantity", "stock_quantity integer DEFAULT 0 NOT NULL");
-  await ensureColumn("video", "video text DEFAULT '' NOT NULL");
-  await ensureColumn("site_visible", "site_visible integer DEFAULT false NOT NULL");
 }
 
 function rowToProduct(row: ProductRow): ManagedProduct {
-  let features: string[] = [];
-  try {
-    features = JSON.parse(row.featuresJson) as string[];
-  } catch {
-    features = [];
-  }
-
-  const primaryImage = row.image || row.imageUrl || "/images/farmose-groundnut-display.webp";
   return {
     slug: row.slug,
     name: row.name,
-    shortName: row.shortName,
+    shortName: row.short_name,
     category: row.category as Product["category"],
     tag: row.tag,
-    price: row.price,
+    price: Number(row.price),
     unit: row.unit,
-    image: primaryImage,
-    imageUrl: primaryImage,
-    imagePublicId: row.imagePublicId ?? undefined,
-    additionalImages: (() => {
-      try {
-        return JSON.parse(row.additionalImagesJson ?? "[]") as string[];
-      } catch {
-        return [];
-      }
-    })(),
-    stockQuantity: row.stockQuantity ?? 0,
+    image: row.image_url || row.image,
+    imageUrl: row.image_url || row.image,
+    imagePublicId: row.image_public_id ?? undefined,
+    additionalImages: stringList(row.additional_images_json),
+    stockQuantity: row.stock_quantity,
     video: row.video,
-    imagePosition: row.imagePosition,
+    imagePosition: row.image_position,
     color: row.color,
-    rating: row.rating,
+    rating: Number(row.rating),
     reviews: row.reviews,
     description: row.description,
     details: row.details,
-    features,
+    features: stringList(row.features_json),
     active: row.active,
-    siteVisible: row.siteVisible,
-    sortOrder: row.sortOrder,
+    siteVisible: row.site_visible,
+    sortOrder: row.sort_order,
   };
 }
 
-export async function ensureCatalogSeeded() {
-  await ensureCatalogTables();
-  const db = getDb();
-  const existing = await db.select({ slug: catalogProducts.slug }).from(catalogProducts).limit(1);
-  if (existing.length === 0) {
-    const seedStatements = fallbackProducts.map((product, index) =>
-      db.insert(catalogProducts).values({
-        ...product,
-        imagePosition: product.imagePosition ?? "center",
-        featuresJson: JSON.stringify(product.features),
-        active: true,
-        siteVisible: false,
-        sortOrder: index,
-      }),
-    );
-    await Promise.all(seedStatements.map((statement) => statement));
-  }
-
-  // Keep the former catalog intact. One-time design entries can then be edited
-  // by staff, and deleting one does not silently recreate it on the next visit.
-  const marker = await db.select({ key: siteSettings.key }).from(siteSettings).where(eq(siteSettings.key, "experienceCatalogSeededV1")).limit(1);
-  if (!marker.length) {
-    for (const product of experienceProducts) {
-      await db.insert(catalogProducts).values({
-        ...product,
-        imagePosition: "center",
-        featuresJson: JSON.stringify(product.features),
-      }).onConflictDoNothing();
-    }
-    await db.insert(siteSettings).values({ key: "experienceCatalogSeededV1", value: "1" }).onConflictDoNothing();
-  }
-}
-
 export async function readManagedProducts(includeInactive = false): Promise<ManagedProduct[]> {
-  await ensureCatalogSeeded();
-  const rows = await getDb().select().from(catalogProducts).orderBy(asc(catalogProducts.sortOrder));
-  const mapped = rows.map(rowToProduct);
-  return includeInactive ? mapped : mapped.filter((product) => product.active);
+  const rows = await query<ProductRow>(
+    "SELECT * FROM catalog_products ORDER BY sort_order, slug",
+  );
+  const products = rows.map(rowToProduct);
+  return includeInactive ? products : products.filter((product) => product.active);
 }
 
 export async function readSiteTheme(): Promise<SiteTheme> {
-  await ensureCatalogTables();
-  const rows = await getDb().select().from(siteSettings);
+  const rows = await query<{ key: string; value: string }>("SELECT key, value FROM site_settings");
   const stored = Object.fromEntries(rows.map((row) => [row.key, row.value]));
   const numeric = (key: keyof SiteTheme, fallback: number) => {
     const value = Number(stored[key]);
     return Number.isFinite(value) ? value : fallback;
   };
-
   const backgroundColor = String(stored.backgroundColor ?? defaultTheme.backgroundColor).toLowerCase() === "#fbf7e9"
     ? "#e6fcd5"
     : String(stored.backgroundColor ?? defaultTheme.backgroundColor);
@@ -180,67 +83,49 @@ export async function readSiteTheme(): Promise<SiteTheme> {
 }
 
 export async function saveSiteTheme(theme: SiteTheme) {
-  const db = getDb();
-  const entries = (Object.keys(defaultTheme) as Array<keyof SiteTheme>).map((key) => {
+  for (const key of Object.keys(defaultTheme) as Array<keyof SiteTheme>) {
     const fallback = defaultTheme[key];
     const raw = theme[key];
     const value = typeof fallback === "number"
-      ? (Number.isFinite(Number(raw)) ? Number(raw) : fallback)
+      ? (Number.isFinite(Number(raw)) ? String(Number(raw)) : String(fallback))
       : String(raw ?? fallback).slice(0, 4000);
-    return [key, value] as const;
-  });
-  const seedStatements = entries.map(([key, value]) =>
-    db
-      .insert(siteSettings)
-      .values({ key, value: String(value), updatedAt: new Date().toISOString() })
-      .onConflictDoUpdate({
-        target: siteSettings.key,
-        set: { value: String(value), updatedAt: new Date().toISOString() },
-      }),
-  );
-  await Promise.all(seedStatements.map((statement) => statement));
+    await query(
+      "INSERT INTO site_settings (key, value, updated_at) VALUES ($1, $2, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+      [key, value],
+    );
+  }
 }
 
 export async function saveManagedProduct(product: ManagedProduct) {
-  await ensureCatalogTables();
-  const d1 = env.DB;
-  if (!d1) throw new Error("Cloudflare D1 binding `DB` is unavailable.");
-  const now = new Date().toISOString();
-  const values = {
-    slug: String(product.slug ?? "").trim(), name: String(product.name ?? "").trim(), shortName: String(product.shortName ?? "").trim(),
-    category: String(product.category ?? "Pantry"), tag: String(product.tag ?? ""), price: Number(product.price) || 0,
-    unit: String(product.unit ?? ""), image: String(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp"),
-    imageUrl: String(product.image || product.imageUrl || "/images/farmose-groundnut-display.webp"), imagePublicId: product.imagePublicId ?? null,
-    additionalImagesJson: JSON.stringify(product.additionalImages ?? []), stockQuantity: Number(product.stockQuantity) || 0,
-    video: String(product.video ?? ""), imagePosition: String(product.imagePosition ?? "center"), color: String(product.color ?? "#d9e9b5"),
-    rating: Number(product.rating) || 5, reviews: Number(product.reviews) || 0, description: String(product.description ?? ""),
-    details: String(product.details ?? ""), featuresJson: JSON.stringify(Array.isArray(product.features) ? product.features : []),
-    active: product.active === false ? 0 : 1, sortOrder: Number(product.sortOrder) || 0,
-    siteVisible: product.siteVisible === true ? 1 : 0,
-  };
-
-  await d1.prepare(`INSERT INTO catalog_products (
+  const values = [
+    product.slug.trim(), product.name.trim(), product.shortName.trim(),
+    product.category, product.tag, Number(product.price), product.unit.trim(),
+    product.image || product.imageUrl || "/images/farmose-groundnut-display.webp",
+    product.imageUrl || product.image || "/images/farmose-groundnut-display.webp",
+    product.imagePublicId ?? null, JSON.stringify(product.additionalImages ?? []),
+    Math.max(0, Math.floor(Number(product.stockQuantity) || 0)),
+    product.video ?? "", product.imagePosition ?? "center", product.color,
+    Number(product.rating) || 5, Number(product.reviews) || 0,
+    product.description, product.details, JSON.stringify(product.features ?? []),
+    product.active !== false, product.siteVisible === true, Number(product.sortOrder) || 0,
+  ];
+  await query(`INSERT INTO catalog_products (
     slug, name, short_name, category, tag, price, unit, image, image_url,
     image_public_id, additional_images_json, stock_quantity, video, image_position,
     color, rating, reviews, description, details, features_json, active, site_visible, sort_order, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(slug) DO UPDATE SET
-    name = excluded.name, short_name = excluded.short_name, category = excluded.category,
-    tag = excluded.tag, price = excluded.price, unit = excluded.unit, image = excluded.image,
-    image_url = excluded.image_url, image_public_id = excluded.image_public_id,
-    additional_images_json = excluded.additional_images_json, stock_quantity = excluded.stock_quantity,
-    video = excluded.video, image_position = excluded.image_position, color = excluded.color,
-    rating = excluded.rating, reviews = excluded.reviews, description = excluded.description,
-    details = excluded.details, features_json = excluded.features_json, active = excluded.active,
-    site_visible = excluded.site_visible,
-    sort_order = excluded.sort_order, updated_at = excluded.updated_at`).bind(
-      values.slug, values.name, values.shortName, values.category, values.tag, values.price, values.unit,
-      values.image, values.imageUrl, values.imagePublicId, values.additionalImagesJson, values.stockQuantity,
-      values.video, values.imagePosition, values.color, values.rating, values.reviews, values.description,
-      values.details, values.featuresJson, values.active, values.siteVisible, values.sortOrder, now,
-    ).run();
+  ) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22,$23,now()
+  ) ON CONFLICT (slug) DO UPDATE SET
+    name=EXCLUDED.name, short_name=EXCLUDED.short_name, category=EXCLUDED.category,
+    tag=EXCLUDED.tag, price=EXCLUDED.price, unit=EXCLUDED.unit, image=EXCLUDED.image,
+    image_url=EXCLUDED.image_url, image_public_id=EXCLUDED.image_public_id,
+    additional_images_json=EXCLUDED.additional_images_json, stock_quantity=EXCLUDED.stock_quantity,
+    video=EXCLUDED.video, image_position=EXCLUDED.image_position, color=EXCLUDED.color,
+    rating=EXCLUDED.rating, reviews=EXCLUDED.reviews, description=EXCLUDED.description,
+    details=EXCLUDED.details, features_json=EXCLUDED.features_json, active=EXCLUDED.active,
+    site_visible=EXCLUDED.site_visible, sort_order=EXCLUDED.sort_order, updated_at=now()`, values);
 }
 
 export async function deleteManagedProduct(slug: string) {
-  await getDb().delete(catalogProducts).where(eq(catalogProducts.slug, slug));
+  await query("DELETE FROM catalog_products WHERE slug = $1", [slug]);
 }

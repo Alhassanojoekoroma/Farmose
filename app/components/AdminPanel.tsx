@@ -4,7 +4,9 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { defaultTheme, money, Product, SiteTheme } from "../farmose-data";
 import type { ManagedProduct } from "../catalog-server";
-import type { AdminRole } from "../admin-auth";
+import { rolePermissions, type AdminPermission, type AdminRole } from "../../lib/permissions";
+import type { PublicUpdate } from "../../lib/updates";
+import { SignOutButton } from "./AdminLogin";
 
 type AdminOrder = {
   id: number;
@@ -25,8 +27,9 @@ type AdminPayload = {
   role: AdminRole;
 };
 
-type Tab = "products" | "appearance" | "media" | "orders" | "team";
-type StaffUser = { email: string; displayName: string; role: "editor" | "orders"; active: boolean };
+type Tab = "products" | "appearance" | "media" | "orders" | "updates" | "team";
+type StaffUser = { email: string; displayName: string; role: Exclude<AdminRole, "owner">; permissions: AdminPermission[]; active: boolean };
+type UpdateDraft = Omit<PublicUpdate, "endsAt"> & { endsAt: string };
 
 type MediaAsset = {
   key: string;
@@ -74,14 +77,32 @@ const blankProduct = (sortOrder: number): ManagedProduct => ({
 
 const categoryOptions: Product["category"][] = ["Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"];
 
-export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: string; adminRole: AdminRole; signOutPath: string }) {
-  const [tab, setTab] = useState<Tab>(adminRole === "orders" ? "orders" : "products");
+const editablePermissions: AdminPermission[] = ["products", "content", "media", "orders", "updates"];
+const permissionLabels: Record<AdminPermission, string> = {
+  products: "Products", content: "Site content", media: "Media", orders: "Orders",
+  updates: "News & offers", team: "Staff access",
+};
+const localDateTime = (iso: string) => {
+  const date = new Date(iso);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+const blankUpdate = (): UpdateDraft => ({
+  id: "", kind: "news", title: "", summary: "", body: "", imageUrl: "",
+  linkUrl: "", startsAt: localDateTime(new Date().toISOString()), endsAt: "", published: false,
+});
+
+export function AdminPanel({ adminName, adminRole, permissions }: { adminName: string; adminRole: AdminRole; permissions: AdminPermission[] }) {
+  const can = (permission: AdminPermission) => permissions.includes(permission);
+  const firstTab: Tab = can("products") ? "products" : can("orders") ? "orders" : can("content") ? "appearance" : can("updates") ? "updates" : can("media") ? "media" : "team";
+  const [tab, setTab] = useState<Tab>(firstTab);
   const [products, setProducts] = useState<ManagedProduct[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(defaultTheme);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
-  const [staffDraft, setStaffDraft] = useState<StaffUser>({ email: "", displayName: "", role: "editor", active: true });
+  const [staffDraft, setStaffDraft] = useState<StaffUser>({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true });
+  const [updates, setUpdates] = useState<PublicUpdate[]>([]);
+  const [updateDraft, setUpdateDraft] = useState<UpdateDraft>(blankUpdate());
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [draft, setDraft] = useState<ManagedProduct>(blankProduct(0));
   const [loading, setLoading] = useState(true);
@@ -90,6 +111,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
   const [uploadProgress, setUploadProgress] = useState(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [clock, setClock] = useState(() => Date.now());
 
   async function load() {
     setLoading(true);
@@ -124,7 +146,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
   }
 
   async function loadTeam() {
-    if (adminRole !== "owner") return;
+    if (!can("team")) return;
     try {
       const response = await fetch("/api/admin/team", { cache: "no-store" });
       const result = await readApiResponse<{ users?: StaffUser[] }>(response);
@@ -135,13 +157,27 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     }
   }
 
+  async function loadUpdates() {
+    if (!can("updates")) return;
+    try {
+      const response = await fetch("/api/admin/updates", { cache: "no-store" });
+      const result = await readApiResponse<{ updates?: PublicUpdate[] }>(response);
+      if (!response.ok) throw new Error(result.error || "News and offers could not be loaded.");
+      setUpdates(result.updates ?? []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "News and offers could not be loaded.");
+    }
+  }
+
   useEffect(() => {
+    const clockTimer = window.setInterval(() => setClock(Date.now()), 60_000);
     const timer = window.setTimeout(() => {
       void load();
-      if (adminRole !== "orders") void loadMedia();
-      if (adminRole === "owner") void loadTeam();
+      if (can("media")) void loadMedia();
+      if (can("team")) void loadTeam();
+      if (can("updates")) void loadUpdates();
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); window.clearInterval(clockTimer); };
     // This is the one-time admin bootstrap; later refreshes are explicit actions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -155,7 +191,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     if (!response.ok) setError(result.error || "Staff access could not be saved.");
     else {
       setNotice("Staff access saved.");
-      setStaffDraft({ email: "", displayName: "", role: "editor", active: true });
+      setStaffDraft({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true });
       await loadTeam();
     }
     setSaving(false);
@@ -166,6 +202,55 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     const response = await fetch(`/api/admin/team?email=${encodeURIComponent(email)}`, { method: "DELETE" });
     if (!response.ok) setError("Staff access could not be removed.");
     else { setNotice("Staff access removed."); await loadTeam(); }
+  }
+
+  function editUpdate(item: PublicUpdate) {
+    setUpdateDraft({
+      ...item,
+      startsAt: localDateTime(item.startsAt),
+      endsAt: item.endsAt ? localDateTime(item.endsAt) : "",
+    });
+    setNotice("");
+    setError("");
+  }
+
+  async function saveUpdate(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/updates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...updateDraft,
+          startsAt: new Date(updateDraft.startsAt).toISOString(),
+          endsAt: updateDraft.endsAt ? new Date(updateDraft.endsAt).toISOString() : null,
+        }),
+      });
+      const result = await readApiResponse<{ id?: string }>(response);
+      if (!response.ok) throw new Error(result.error || "The update could not be saved.");
+      setNotice(updateDraft.published ? "Update published for its scheduled period." : "Draft update saved.");
+      setUpdateDraft(blankUpdate());
+      await loadUpdates();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The update could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeUpdate(id: string) {
+    if (!window.confirm("Delete this update?")) return;
+    const response = await fetch(`/api/admin/updates?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const result = await readApiResponse<Record<string, never>>(response);
+    if (!response.ok) setError(result.error || "The update could not be deleted.");
+    else {
+      setNotice("Update deleted.");
+      if (updateDraft.id === id) setUpdateDraft(blankUpdate());
+      await loadUpdates();
+    }
   }
 
   const activeCount = useMemo(() => products.filter((product) => product.active).length, [products]);
@@ -185,7 +270,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     setError("");
   }
 
-  function updateDraft<K extends keyof ManagedProduct>(key: K, value: ManagedProduct[K]) {
+  function updateProductDraft<K extends keyof ManagedProduct>(key: K, value: ManagedProduct[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -232,7 +317,7 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
   async function uploadMedia(
     event: ChangeEvent<HTMLInputElement>,
     kind: "image" | "video",
-    destination: "product" | "library" | ThemeImageKey = "product",
+    destination: "product" | "library" | "update" | ThemeImageKey = "product",
   ) {
     const input = event.currentTarget;
     const files = Array.from(input.files ?? []);
@@ -278,10 +363,13 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         if (kind === "image") {
           setDraft((current) => ({ ...current, image: firstUploaded.url, imageUrl: firstUploaded.url }));
         } else {
-          updateDraft("video", firstUploaded.url);
+          updateProductDraft("video", firstUploaded.url);
         }
       }
-      if (firstUploaded && destination !== "product" && destination !== "library" && kind === "image") {
+      if (firstUploaded && destination === "update" && kind === "image") {
+        setUpdateDraft((current) => ({ ...current, imageUrl: firstUploaded.url }));
+      }
+      if (firstUploaded && destination !== "product" && destination !== "library" && destination !== "update" && kind === "image") {
         setTheme((current) => ({ ...current, [destination]: firstUploaded.url }));
       }
       setMedia((current) => [...uploaded, ...current]);
@@ -289,6 +377,8 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
         setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added. The first file is selected for this product — save the product to publish it.`);
       } else if (destination === "library") {
         setNotice(`${uploaded.length} ${kind}${uploaded.length === 1 ? "" : "s"} added to the media library.`);
+      } else if (destination === "update") {
+        setNotice("Photo uploaded and selected. Save the update to publish it.");
       } else {
         setNotice("Image uploaded and selected. Publish the storefront content to make it live.");
       }
@@ -340,10 +430,10 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
     return (
       <div className="admin-theme-image">
         <label className="admin-field"><span>{label}</span><input list="farmose-media-images" value={theme[key]} onChange={(event) => setTheme({ ...theme, [key]: event.target.value })} /></label>
-        <div className="admin-upload admin-upload-compact">
+        {can("media") && <div className="admin-upload admin-upload-compact">
           <div><strong>Upload {label.toLowerCase()}</strong><small>Choose an image directly from this device.</small></div>
           <label><input type="file" accept="image/*" onChange={(event) => void uploadMedia(event, "image", key)} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose image"}</label>
-        </div>
+        </div>}
       </div>
     );
   }
@@ -356,18 +446,19 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
           <span>Store manager</span>
         </a>
         <nav aria-label="Administration sections">
-          {adminRole !== "orders" && <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>}
-          {adminRole !== "orders" && <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Content</button>}
-          {adminRole !== "editor" && <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>}
-          {adminRole !== "orders" && <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>}
-          {adminRole === "owner" && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Staff</button>}
+          {can("products") && <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}><span>▦</span>Products <b>{activeCount}</b></button>}
+          {can("content") && <button className={tab === "appearance" ? "active" : ""} onClick={() => setTab("appearance")}><span>◐</span>Content</button>}
+          {can("orders") && <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>}
+          {can("updates") && <button className={tab === "updates" ? "active" : ""} onClick={() => { setTab("updates"); void loadUpdates(); }}><span>✦</span>News & offers</button>}
+          {can("media") && <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>}
+          {can("team") && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Staff</button>}
         </nav>
-        <div className="admin-account"><small>Signed in as</small><strong>{adminName}</strong><a href={signOutPath}>Sign out</a></div>
+        <div className="admin-account"><small>Signed in as</small><strong>{adminName}</strong><SignOutButton /></div>
       </aside>
 
       <section className="admin-workspace">
         <header className="admin-topbar">
-          <div><p>FARMOSE ADMINISTRATION · {adminRole.toUpperCase()}</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront content" : tab === "media" ? "Media library" : tab === "team" ? "Staff & roles" : "Customer orders"}</h1></div>
+          <div><p>FARMOSE ADMINISTRATION · {adminRole.toUpperCase()}</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront content" : tab === "media" ? "Media library" : tab === "updates" ? "News & offers" : tab === "team" ? "Staff & roles" : "Customer orders"}</h1></div>
           <a href="/" target="_blank" rel="noreferrer">View live store ↗</a>
         </header>
         {(notice || error) && <div className={`admin-message ${error ? "error" : ""}`}>{error || notice}</div>}
@@ -385,34 +476,35 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
               ))}
             </section>
             <form className="admin-editor" onSubmit={saveProduct}>
-              <div className="admin-section-title"><div><p>{selectedSlug ? "EDIT PRODUCT" : "NEW PRODUCT"}</p><h2>{draft.name || "Untitled product"}</h2></div><label className="admin-switch"><input type="checkbox" checked={draft.siteVisible} onChange={(event) => updateDraft("siteVisible", event.target.checked)} /><span>Show on new site</span></label></div>
+              <div className="admin-section-title"><div><p>{selectedSlug ? "EDIT PRODUCT" : "NEW PRODUCT"}</p><h2>{draft.name || "Untitled product"}</h2></div><label className="admin-switch"><input type="checkbox" checked={draft.siteVisible} onChange={(event) => updateProductDraft("siteVisible", event.target.checked)} /><span>Show on new site</span></label></div>
               <div className="admin-product-preview" style={{ background: draft.color }}><span>{draft.tag || "PRODUCT"}</span><img src={draft.image} alt="Product preview" /><b>{money(Number(draft.price) || 0)}</b></div>
               <div className="admin-form-grid">
-                <label><span>Product name</span><input required value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} /></label>
-                <label><span>Short name</span><input required value={draft.shortName} onChange={(event) => updateDraft("shortName", event.target.value)} /></label>
-                <label><span>URL slug</span><input required disabled={Boolean(selectedSlug)} value={draft.slug} onChange={(event) => updateDraft("slug", event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))} /></label>
-                <label><span>Category</span><select value={draft.category} onChange={(event) => updateDraft("category", event.target.value as Product["category"])}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
-                <label><span>Price (Le)</span><input required min="0" step="0.01" type="number" value={draft.price} onChange={(event) => updateDraft("price", Number(event.target.value))} /></label>
-                <label><span>Unit</span><input required value={draft.unit} onChange={(event) => updateDraft("unit", event.target.value)} placeholder="e.g. 950 g jar" /></label>
-                <label><span>{draft.slug.startsWith("pantry-") ? "Product type" : "Card label"}</span><input value={draft.tag} onChange={(event) => updateDraft("tag", event.target.value.toUpperCase())} /></label>
-                <label><span>Card background</span><input type="color" value={draft.color} onChange={(event) => updateDraft("color", event.target.value)} /></label>
-                <label><span>Display order</span><input type="number" value={draft.sortOrder} onChange={(event) => updateDraft("sortOrder", Number(event.target.value))} /></label>
-                <label><span>Available for enquiry</span><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft("active", event.target.checked)} /></label>
-                <label><span>Stock quantity (0 = untracked)</span><input type="number" min="0" value={draft.stockQuantity ?? 0} onChange={(event) => updateDraft("stockQuantity", Number(event.target.value))} /></label>
-                <label><span>Image position</span><select value={draft.imagePosition || "center"} onChange={(event) => updateDraft("imagePosition", event.target.value)}><option>center</option><option>top</option><option>bottom</option><option>left</option><option>right</option></select></label>
+                <label><span>Product name</span><input required value={draft.name} onChange={(event) => updateProductDraft("name", event.target.value)} /></label>
+                <label><span>Short name</span><input required value={draft.shortName} onChange={(event) => updateProductDraft("shortName", event.target.value)} /></label>
+                <label><span>URL slug</span><input required disabled={Boolean(selectedSlug)} value={draft.slug} onChange={(event) => updateProductDraft("slug", event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))} /></label>
+                <label><span>Category</span><select value={draft.category} onChange={(event) => updateProductDraft("category", event.target.value as Product["category"])}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
+                <label><span>Price (Le)</span><input required min="0" step="0.01" type="number" value={draft.price} onChange={(event) => updateProductDraft("price", Number(event.target.value))} /></label>
+                <label><span>Unit</span><input required value={draft.unit} onChange={(event) => updateProductDraft("unit", event.target.value)} placeholder="e.g. 950 g jar" /></label>
+                <label><span>{draft.slug.startsWith("pantry-") ? "Product type" : "Card label"}</span><input value={draft.tag} onChange={(event) => updateProductDraft("tag", event.target.value.toUpperCase())} /></label>
+                <label><span>Card background</span><input type="color" value={draft.color} onChange={(event) => updateProductDraft("color", event.target.value)} /></label>
+                <label><span>Display order</span><input type="number" value={draft.sortOrder} onChange={(event) => updateProductDraft("sortOrder", Number(event.target.value))} /></label>
+                <label><span>Available for enquiry</span><input type="checkbox" checked={draft.active} onChange={(event) => updateProductDraft("active", event.target.checked)} /></label>
+                <label><span>Stock quantity (0 = untracked)</span><input type="number" min="0" value={draft.stockQuantity ?? 0} onChange={(event) => updateProductDraft("stockQuantity", Number(event.target.value))} /></label>
+                <label><span>Image position</span><select value={draft.imagePosition || "center"} onChange={(event) => updateProductDraft("imagePosition", event.target.value)}><option>center</option><option>top</option><option>bottom</option><option>left</option><option>right</option></select></label>
               </div>
-              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Product description" : "Short card description"}</span><textarea required rows={3} value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} /></label>
-              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Pack format" : "Product page description"}</span><textarea required rows={4} value={draft.details} onChange={(event) => updateDraft("details", event.target.value)} /></label>
-              <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>{draft.slug.startsWith("pantry-") ? ["Serving ideas", "Storage", "Product fact"][index] : `Feature ${index + 1}`}</span><input value={draft.features[index] || ""} onChange={(event) => updateDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
-              <div className="admin-upload"><div><strong>Product photos</strong><small>Select one or several images directly from this device. Files up to 12 MB are uploaded safely in small parts.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose photos from device"}</label></div>
-              <div className="admin-upload"><div><strong>Product video</strong><small>Choose an MP4 or WebM directly from this device (up to 40 MB).</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Choose video from device"}</label>{draft.video && <button type="button" className="admin-clear-media" onClick={() => updateDraft("video", "")}>Remove selected video</button>}</div>
-              <section className="admin-media-picker" aria-label="Product media library">
+              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Product description" : "Short card description"}</span><textarea required rows={3} value={draft.description} onChange={(event) => updateProductDraft("description", event.target.value)} /></label>
+              <label className="admin-field"><span>{draft.slug.startsWith("pantry-") ? "Pack format" : "Product page description"}</span><textarea required rows={4} value={draft.details} onChange={(event) => updateProductDraft("details", event.target.value)} /></label>
+              <div className="admin-form-grid features-fields">{[0, 1, 2].map((index) => <label key={index}><span>{draft.slug.startsWith("pantry-") ? ["Serving ideas", "Storage", "Product fact"][index] : `Feature ${index + 1}`}</span><input value={draft.features[index] || ""} onChange={(event) => updateProductDraft("features", [0, 1, 2].map((featureIndex) => featureIndex === index ? event.target.value : draft.features[featureIndex] || ""))} /></label>)}</div>
+              <label className="admin-field"><span>Product photo URL</span><input value={draft.image} onChange={(event) => { updateProductDraft("image", event.target.value); updateProductDraft("imageUrl", event.target.value); }} placeholder="https://... or /images/..." /></label>
+              {can("media") && <div className="admin-upload"><div><strong>Product photos</strong><small>Select one or several images directly from this device. Files up to 12 MB are uploaded safely in small parts.</small></div><label><input type="file" accept="image/*" multiple onChange={(event) => void uploadMedia(event, "image")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose photos from device"}</label></div>}
+              {can("media") && <div className="admin-upload"><div><strong>Product video</strong><small>Choose an MP4 or WebM directly from this device (up to 40 MB).</small></div><label><input type="file" accept="video/mp4,video/webm,video/*" onChange={(event) => void uploadMedia(event, "video")} />{uploading === "video" ? `Uploading ${uploadProgress}%` : "Choose video from device"}</label>{draft.video && <button type="button" className="admin-clear-media" onClick={() => updateProductDraft("video", "")}>Remove selected video</button>}</div>}
+              {can("media") && <section className="admin-media-picker" aria-label="Product media library">
                 <div className="admin-section-title"><div><p>YOUR MEDIA LIBRARY</p><h2>Choose the product photo</h2><small>Click any image to use it for this product. No image URLs are needed.</small></div><button type="button" onClick={() => void loadMedia()}>Refresh</button></div>
                 <div className="admin-media-grid compact">
                   {media.filter((asset) => asset.kind === "image").map((asset) => <button className={draft.image === asset.url ? "selected" : ""} type="button" key={asset.key} onClick={() => { setDraft((current) => ({ ...current, image: asset.url, imageUrl: asset.url })); setNotice("Photo selected. Save product to publish it."); }}><img src={asset.url} alt="Uploaded product option" /><span>{draft.image === asset.url ? "Selected" : "Use this photo"}</span></button>)}
                   {!media.some((asset) => asset.kind === "image") && <p className="admin-library-empty">Upload photos above and they will stay here for every product.</p>}
                 </div>
-              </section>
+              </section>}
               <div className="admin-actions">{selectedSlug && <button className="danger" type="button" onClick={removeProduct}>Delete product</button>}<button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save product"}</button></div>
             </form>
           </div>
@@ -454,17 +546,59 @@ export function AdminPanel({ adminName, adminRole, signOutPath }: { adminName: s
           </section>
         )}
 
-        {!loading && tab === "team" && adminRole === "owner" && (
+        {!loading && tab === "updates" && can("updates") && (
+          <section className="admin-updates">
+            <div className="admin-section-title"><div><p>PUBLIC JOURNAL</p><h2>News, promotions & visits</h2><small>Published items appear only from their start time until their end time. Leave the end blank to keep an item visible.</small></div><a href="/updates" target="_blank" rel="noreferrer">View public page ↗</a></div>
+            <div className="admin-updates-layout">
+              <form className="admin-editor admin-update-editor" onSubmit={saveUpdate}>
+                <div className="admin-section-title"><div><p>{updateDraft.id ? "EDIT UPDATE" : "NEW UPDATE"}</p><h2>{updateDraft.title || "Untitled update"}</h2></div></div>
+                <div className="admin-form-grid">
+                  <label><span>Type</span><select value={updateDraft.kind} onChange={(event) => setUpdateDraft({ ...updateDraft, kind: event.target.value as PublicUpdate["kind"] })}><option value="promotion">Promotion</option><option value="news">News</option><option value="visit">Place visited</option><option value="program">Program attended</option></select></label>
+                  <label><span>Title</span><input required maxLength={160} value={updateDraft.title} onChange={(event) => setUpdateDraft({ ...updateDraft, title: event.target.value })} /></label>
+                </div>
+                <label><span>Short introduction</span><textarea rows={3} maxLength={350} value={updateDraft.summary} onChange={(event) => setUpdateDraft({ ...updateDraft, summary: event.target.value })} /></label>
+                <label><span>Full story or offer details</span><textarea rows={6} maxLength={6000} value={updateDraft.body} onChange={(event) => setUpdateDraft({ ...updateDraft, body: event.target.value })} /></label>
+                <div className="admin-form-grid">
+                  <label><span>Show from</span><input required type="datetime-local" value={updateDraft.startsAt} onChange={(event) => setUpdateDraft({ ...updateDraft, startsAt: event.target.value })} /></label>
+                  <label><span>Hide after (optional)</span><input type="datetime-local" min={updateDraft.startsAt} value={updateDraft.endsAt} onChange={(event) => setUpdateDraft({ ...updateDraft, endsAt: event.target.value })} /></label>
+                </div>
+                 <small>Times use your device&apos;s local time. The website applies them automatically.</small>
+                <label><span>Photo URL (optional)</span><input type="url" value={updateDraft.imageUrl} onChange={(event) => setUpdateDraft({ ...updateDraft, imageUrl: event.target.value })} placeholder="https://..." /></label>
+                <div className="admin-upload admin-upload-compact"><div><strong>Add a photo</strong><small>Choose an image from your device or enter a photo URL.</small></div><label><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => void uploadMedia(event, "image", "update")} />{uploading === "image" ? `Uploading ${uploadProgress}%` : "Choose photo"}</label></div>
+                {can("media") && media.some((asset) => asset.kind === "image") && <div className="admin-media-grid compact">{media.filter((asset) => asset.kind === "image").slice(0, 12).map((asset) => <button key={asset.key} type="button" className={updateDraft.imageUrl === asset.url ? "selected" : ""} onClick={() => setUpdateDraft({ ...updateDraft, imageUrl: asset.url })}><img src={asset.url} alt="" /><span>{updateDraft.imageUrl === asset.url ? "Selected" : "Use photo"}</span></button>)}</div>}
+                <label><span>More information link (optional)</span><input type="url" value={updateDraft.linkUrl} onChange={(event) => setUpdateDraft({ ...updateDraft, linkUrl: event.target.value })} placeholder="https://..." /></label>
+                <label className="admin-switch"><input type="checkbox" checked={updateDraft.published} onChange={(event) => setUpdateDraft({ ...updateDraft, published: event.target.checked })} /><span>Publish during the scheduled period</span></label>
+                <div className="admin-actions"><button type="button" onClick={() => setUpdateDraft(blankUpdate())}>New update</button><button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save update"}</button></div>
+              </form>
+              <section className="admin-orders admin-update-list" aria-label="Saved updates">
+                <div className="admin-section-title"><div><p>SAVED UPDATES</p><h2>Schedule</h2></div></div>
+                {updates.map((item) => {
+                   const now = clock;
+                  const status = !item.published ? "Draft" : now < Date.parse(item.startsAt) ? "Scheduled" : item.endsAt && now >= Date.parse(item.endsAt) ? "Expired" : "Live";
+                  return <article key={item.id}><div><strong>{item.title}</strong><small>{item.kind} · {status}</small><small>{new Date(item.startsAt).toLocaleString()} {item.endsAt ? `to ${new Date(item.endsAt).toLocaleString()}` : "onward"}</small></div><div className="admin-update-list-actions"><button type="button" onClick={() => editUpdate(item)}>Edit</button><button type="button" className="danger" onClick={() => void removeUpdate(item.id)}>Delete</button></div></article>;
+                })}
+                {!updates.length && <div className="admin-empty"><h3>No updates yet.</h3><p>Add your first announcement when you are ready.</p></div>}
+              </section>
+            </div>
+          </section>
+        )}
+
+        {!loading && tab === "team" && can("team") && (
           <section className="admin-team admin-orders">
-            <div className="admin-section-title"><div><p>ROLE-BASED ACCESS</p><h2>Staff accounts</h2><small>Staff sign in with their own ChatGPT identity. Editors manage products/content/media; order staff manage checkouts only.</small></div></div>
+             <div className="admin-section-title"><div><p>ROLE-BASED ACCESS</p><h2>Staff accounts</h2><small>Approve each person&apos;s email, choose a role, then adjust exactly which parts of Farmose they can manage. Staff verify their email when creating a login.</small></div></div>
             <form className="admin-team-form admin-form-grid" onSubmit={saveStaff}>
               <label><span>Staff email</span><input required type="email" value={staffDraft.email} onChange={(event) => setStaffDraft({ ...staffDraft, email: event.target.value })} /></label>
               <label><span>Display name / username</span><input required value={staffDraft.displayName} onChange={(event) => setStaffDraft({ ...staffDraft, displayName: event.target.value })} /></label>
-              <label><span>Role</span><select value={staffDraft.role} onChange={(event) => setStaffDraft({ ...staffDraft, role: event.target.value as StaffUser["role"] })}><option value="editor">Store editor</option><option value="orders">Order manager</option></select></label>
-              <div className="admin-actions"><button className="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Add or update staff"}</button></div>
+              <label><span>Role</span><select value={staffDraft.role} onChange={(event) => {
+                const role = event.target.value as StaffUser["role"];
+                setStaffDraft({ ...staffDraft, role, permissions: role === "custom" ? staffDraft.permissions : [...rolePermissions[role]] });
+              }}><option value="editor">Store editor</option><option value="orders">Order manager</option><option value="content">Content editor</option><option value="media">Media manager</option><option value="updates">News & offers editor</option><option value="custom">Custom permissions</option></select></label>
+              <label className="admin-switch"><input type="checkbox" checked={staffDraft.active} onChange={(event) => setStaffDraft({ ...staffDraft, active: event.target.checked })} /><span>Access active</span></label>
+              <fieldset className="admin-permissions"><legend>Allowed sections</legend>{editablePermissions.map((permission) => <label key={permission}><input type="checkbox" checked={staffDraft.permissions.includes(permission)} onChange={(event) => setStaffDraft((current) => ({ ...current, role: "custom", permissions: event.target.checked ? [...current.permissions, permission] : current.permissions.filter((value) => value !== permission) }))} />{permissionLabels[permission]}</label>)}</fieldset>
+              <div className="admin-actions"><button type="button" onClick={() => setStaffDraft({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true })}>Clear form</button><button className="primary" type="submit" disabled={saving || !staffDraft.permissions.length}>{saving ? "Saving…" : "Save staff access"}</button></div>
             </form>
             <div className="admin-team-list">
-              {staff.map((member) => <article key={member.email}><div><strong>{member.displayName}</strong><small>{member.email}</small></div><div><b>{member.role === "editor" ? "Store editor" : "Order manager"}</b><small>{member.active ? "Active" : "Disabled"}</small></div><button type="button" className="danger" onClick={() => void removeStaff(member.email)}>Remove</button></article>)}
+              {staff.map((member) => <article key={member.email}><div><strong>{member.displayName}</strong><small>{member.email}</small></div><div><b>{member.role === "custom" ? "Custom" : member.role}</b><small>{member.permissions.map((permission) => permissionLabels[permission]).join(", ")}</small><small>{member.active ? "Active" : "Disabled"}</small></div><div className="admin-staff-actions"><button type="button" onClick={() => setStaffDraft({ ...member })}>Edit</button><button type="button" className="danger" onClick={() => void removeStaff(member.email)}>Remove</button></div></article>)}
               {!staff.length && <div className="admin-empty"><h3>No staff accounts yet.</h3><p>Add a staff email above to grant the appropriate access.</p></div>}
             </div>
           </section>

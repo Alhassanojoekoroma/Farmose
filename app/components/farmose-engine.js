@@ -108,6 +108,10 @@ const safeAsset=value=>{
  return (/^\/(?!\/)/.test(url)||/^https:\/\//i.test(url))?safeText(url):'';
 };
 const safeColor=value=>/^#[0-9a-f]{6}$/i.test(String(value))?String(value):'#14402b';
+const liveUpdates=()=>Array.isArray(options.updates)?options.updates.filter(item=>{
+ const now=Date.now(),start=Date.parse(item.startsAt),end=item.endsAt?Date.parse(item.endsAt):Infinity;
+ return item.published===true&&Number.isFinite(start)&&start<=now&&now<end;
+}):[];
 const hiddenDesignSlugs=new Set(Array.isArray(options.hiddenDesignSlugs)?options.hiddenDesignSlugs:[]);
 for(const product of Array.isArray(options.products)?options.products:[]){
  if(!product||product.siteVisible!==true||typeof product.slug!=='string')continue;
@@ -152,7 +156,7 @@ const money=n=>CONFIG.currency+' '+n.toLocaleString('en-US');
 const HERO=['groundnut-paste','cayenne-pepper','honey','keinda','palm-oil','benny','tola','groundnut-paste-2kg'].map(listedBySlug).filter(Boolean);
 const tl=o=>o[lang]||o.en;
 
-const I={en:{home:'Home',pantry:'Pantry',production:'Production',experience:'Experience',about:'About',contacts:'Contacts',shop:'Shop',menu:'Menu',close:'Close',
+const I={en:{home:'Home',pantry:'Pantry',production:'Production',experience:'Experience',updates:'News & offers',about:'About',contacts:'Contacts',shop:'Shop',menu:'Menu',close:'Close',
  discover:'Discover the product',drag:'Drag',dragOpen:'Drag or click',scroll:'Scroll to discover',privacy:'Privacy & Cookies',
  privTxt:'This is a demo build of the Farmose site. It sets no cookies and collects no data. Replace this text with your real privacy and cookie policy.',
  arc:'From our farm, to your table. ',arcSize:190,
@@ -170,7 +174,7 @@ const I={en:{home:'Home',pantry:'Pantry',production:'Production',experience:'Exp
  qty:'Quantity',total:'Total',sendWA:'Send on WhatsApp',clearAll:'Clear all',yourName:'Your name',area:'Delivery area',emptyBk:'Your enquiry is empty. Add products from the pantry and send them to us in one WhatsApp message.',browseP:'Browse the pantry',remove:'Remove',chat:'Chat on WhatsApp',
  greet:'Hello Farmose, I would like to order:',askMsg:'Hello Farmose, is this product available:',nameL:'Name',areaL:'Delivery area',totalL:'Total',
  ckTxt:'We use analytics cookies to understand how the site is used. You can accept or reject them.',ckA:'Accept',ckR:'Reject'},
-kr:{home:'Hom',pantry:'Pantri',production:'Wetin wi mek',experience:'Experiens',about:'Pan wi',contacts:'Kontakt wi',shop:'Shop',menu:'Menyu',close:'Shot',
+kr:{home:'Hom',pantry:'Pantri',production:'Wetin wi mek',experience:'Experiens',updates:'Nyus en ofa',about:'Pan wi',contacts:'Kontakt wi',shop:'Shop',menu:'Menyu',close:'Shot',
  discover:'Si di prodak',drag:'Drag',dragOpen:'Drag o klik',scroll:'Skrol fo si',privacy:'Prayvasi & Kuki',
  privTxt:'Dis na demo versin fo di Farmose sayt. I no kip kuki en i no kolekt data. Chenj dis tekst wit yu rial prayvasi polisi.',
  arc:'Fro wi fam kam na yu tebul. ',arcSize:150,
@@ -250,7 +254,7 @@ function lines(txt){return txt.split('|').map(l=>`<span class="line"><span>${l}<
 /* ---------------- footer ---------------- */
 function footer(){return `<footer class="foot" id="contacts">
  <h2 class="big">${t('conT')}</h2>
- <div class="c"><h5>${t('menu')}</h5><a href="#home" data-go="home">${t('home')}</a><a href="#pantry" data-go="pantry">${t('pantry')}</a><a href="#production" data-go="production">${t('production')}</a><a href="#experience" data-go="experience">${t('experience')}</a><a href="#about" data-go="about">${t('about')}</a></div>
+ <div class="c"><h5>${t('menu')}</h5><a href="#home" data-go="home">${t('home')}</a><a href="#pantry" data-go="pantry">${t('pantry')}</a><a href="#production" data-go="production">${t('production')}</a><a href="#experience" data-go="experience">${t('experience')}</a><a href="/updates" data-go="updates">${t('updates')}</a><a href="#about" data-go="about">${t('about')}</a></div>
  <div class="c"><h5>${t('offices')}</h5>${storeAddress()}</div>
  <div class="c"><h5>${t('phone')}</h5><a href="tel:+${CONFIG.whatsapp}">${safeText(options.theme?.whatsappNumber||'+232 79 529291')}</a><a href="https://wa.me/${CONFIG.whatsapp}" target="_blank" rel="noopener">${t('chat')}</a></div>
  <div class="c"><h5>${t('follow')}</h5><a href="mailto:${contactEmail}">${contactEmail}</a></div>
@@ -269,6 +273,7 @@ function viewHome(){
    <text font-size="${t('arcSize')}" textLength="4524" lengthAdjust="spacing"><textPath href="#arcP">${arcText}</textPath></text></g></svg>
   <div class="jars" id="jars"></div>
   <div class="scroll-hint">${t('scroll')}</div>
+  ${liveUpdates().length?'<a class="home-updates" href="/updates" data-go="updates">Latest news & offers <span aria-hidden="true">↗</span></a>':''}
   <button class="priv" id="privBtn">${t('privacy')}</button>
   <div class="dots" id="dots">${HERO.map(()=>'<span></span>').join('')}</div>`;
  const jars=$('#jars',v);
@@ -376,6 +381,27 @@ function viewExperience(){
  v.innerHTML=`<section class="exp-hero"><h1 class="disp">${lines(t('expT').replace(' ','|'))}</h1><p class="body fade">${t('expP')}</p></section>
  <div class="exp-list">${ex.map(e=>`<div class="exp"><div class="vis" style="background:${e[2]}">${shapeSVG(bySlug(e[1]),'bigx','rgba(248,241,228,.28)')}<img src="${img(bySlug(e[1]).img)}" alt=""></div><div class="tx"><h3>${t(e[0])}</h3><p>${t(e[0]+'p')}</p><a class="btn" href="#contacts" data-go="contacts">${t('enq')}</a></div></div>`).join('')}</div>${footer()}`;
  return v}
+function viewUpdates(){
+ const list=liveUpdates();
+ const label={promotion:'Promotion',news:'News',visit:'Place visited',program:'Program attended'};
+ const date=value=>new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Freetown'}).format(new Date(value));
+ const card=item=>{
+  const image=safeAsset(item.imageUrl);
+  const link=safeAsset(item.linkUrl);
+  return `<article class="update-card">
+   ${image?`<img src="${image}" alt="" loading="lazy">`:''}
+   <div class="update-card-copy"><span class="update-kind">${label[item.kind]||'Update'}</span>
+    <h2>${safeText(item.title)}</h2><p class="update-summary">${safeText(item.summary)}</p>
+    ${item.body?`<p class="update-body">${safeText(item.body).replace(/\n/g,'<br>')}</p>`:''}
+    <small>From ${date(item.startsAt)}${item.endsAt?` · Until ${date(item.endsAt)}`:''}</small>
+    ${link?`<a class="btn" href="${link}" ${link.startsWith('https://')?'target="_blank" rel="noopener noreferrer"':''}>Learn more ↗</a>`:''}
+   </div></article>`;
+ };
+ const v=document.createElement('div');v.className='page updates-page';
+ v.innerHTML=`<section class="exp-hero"><p class="eyebrow">FARMOSE JOURNAL</p><h1 class="disp">News & offers</h1><p class="body fade">Promotions, places we visited and programs we attended.</p></section>
+  <div class="updates-list">${list.length?list.map(card).join(''):'<div class="updates-empty"><h2>More stories are coming.</h2><p>Check back for news from Farmose.</p></div>'}</div>${footer()}`;
+ return v;
+}
 function viewAbout(){const v=document.createElement('div');v.className='page';
  v.innerHTML=`<section class="exp-hero"><h1 class="disp">${lines(t('abT').replace(' ','|'))}</h1><p class="body fade">${t('abP')}</p><div class="diamond"></div></section>
  <div class="grid" style="grid-template-columns:repeat(4,1fr)">${listed.filter(p=>p.slug!=='groundnut-paste-2kg').slice(0,4).map(cardHTML).join('')}</div>${footer()}`;return v}
@@ -419,11 +445,12 @@ function build(r){
  if(r==='pantry')return viewPantry();
  if(r==='production')return viewProduction();
  if(r==='experience')return viewExperience();
+ if(r==='updates')return viewUpdates();
  if(r==='about')return viewAbout();
  if(r==='contacts')return viewContacts();
  const p=listedBySlug(r);return p?viewProduct(p):viewHome()}
 function mount(r){
- stopAll();route=listedBySlug(r)||['home','pantry','production','experience','about','contacts'].includes(r)?r:'home';
+ stopAll();route=listedBySlug(r)||['home','pantry','production','experience','updates','about','contacts'].includes(r)?r:'home';
  const view=$('#view');view.innerHTML='';view.appendChild(build(route));
  document.body.classList.toggle('lock',route==='home');
  scrollTo(0,0);document.body.classList.remove('hdr-light');
@@ -432,6 +459,8 @@ function mount(r){
  if(route==='production')initProduction();
  initGalleries();
  if(listedBySlug(route))initOrder(listedBySlug(route));
+ const nextExpiry=liveUpdates().map(item=>item.endsAt?Date.parse(item.endsAt):Infinity).filter(time=>Number.isFinite(time)&&time>Date.now()).sort((a,b)=>a-b)[0];
+ if(nextExpiry){const timer=setTimeout(()=>mount(route),Math.min(nextExpiry-Date.now()+1000,2147483647));cleanup.push(()=>clearTimeout(timer))}
  $$('#privBtn').forEach(b=>b.onclick=()=>$('#modal').classList.add('on'));
  $$('#menu a').forEach(a=>a.classList.toggle('cur',a.dataset.go===(listedBySlug(route)?'pantry':route)));
 }
@@ -523,7 +552,7 @@ let hk=false;addEventListener('scroll',()=>{if(hk)return;hk=true;requestAnimatio
 /* boot */
 applyLang();renderBasket();
 const start=(location.hash||'').slice(1)||options.initialRoute;
-mount(start&&(listedBySlug(start)||['pantry','production','experience','about','contacts'].includes(start))?start:'home');
+mount(start&&(listedBySlug(start)||['pantry','production','experience','updates','about','contacts'].includes(start))?start:'home');
 HERO.concat(P).forEach(p=>{const i=new Image();i.src=img(p.img)});
 /* intro: logo animates on the green cover, then it lifts */
 (function intro(){busy=true;const c=$('#cover');const wait=ms=>new Promise(z=>setTimeout(z,ms));

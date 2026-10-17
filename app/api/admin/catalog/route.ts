@@ -1,4 +1,3 @@
-import { desc, eq } from "drizzle-orm";
 import { hasAdminPermission, requireAdminApi } from "../../../admin-auth";
 import {
   deleteManagedProduct,
@@ -9,9 +8,7 @@ import {
   saveSiteTheme,
 } from "../../../catalog-server";
 import { defaultTheme, SiteTheme } from "../../../farmose-data";
-import { getDb } from "../../../../db";
-import { catalogProducts, orders } from "../../../../db/schema";
-import { deleteProductImage } from "../../../../lib/cloudinary";
+import { query } from "../../../../lib/postgres";
 
 export const dynamic = "force-dynamic";
 
@@ -20,17 +17,28 @@ const categories = ["Pantry", "Fresh Seafood", "Meat & Poultry", "Fresh Produce"
 export async function GET() {
   const auth = await requireAdminApi();
   if (auth instanceof Response) return auth;
-
-  const [products, theme, recentOrders] = await Promise.all([
-    hasAdminPermission(auth.role, "products") ? readManagedProducts(true) : Promise.resolve([]),
-    hasAdminPermission(auth.role, "content") ? readSiteTheme() : Promise.resolve(defaultTheme),
-    hasAdminPermission(auth.role, "orders") ? getDb().select().from(orders).orderBy(desc(orders.createdAt)).limit(50).catch(() => []) : Promise.resolve([]),
-  ]);
-  return Response.json({ products, theme, orders: recentOrders, admin: auth.displayName });
+  try {
+    const [products, theme, recentOrders] = await Promise.all([
+      hasAdminPermission(auth, "products") ? readManagedProducts(true) : Promise.resolve([]),
+      hasAdminPermission(auth, "content") ? readSiteTheme() : Promise.resolve(defaultTheme),
+      hasAdminPermission(auth, "orders") ? query<{
+        id: number; order_number: string; customer_name: string; phone: string;
+        area: string; payment_method: string; total: string; status: string; created_at: Date;
+      }>("SELECT id, order_number, customer_name, phone, area, payment_method, total, status, created_at FROM orders ORDER BY created_at DESC LIMIT 50") : Promise.resolve([]),
+    ]);
+    return Response.json({ products, theme, orders: recentOrders.map((order) => ({
+      id: Number(order.id), orderNumber: order.order_number, customerName: order.customer_name,
+      phone: order.phone, area: order.area, paymentMethod: order.payment_method,
+      total: Number(order.total), status: order.status, createdAt: order.created_at.toISOString(),
+    })), admin: auth.displayName });
+  } catch (error) {
+    console.error("Admin catalog read failed", error);
+    return Response.json({ error: "The administration data is temporarily unavailable." }, { status: 503 });
+  }
 }
 
 export async function PUT(request: Request) {
-  const auth = await requireAdminApi();
+  const auth = await requireAdminApi(undefined, request);
   if (auth instanceof Response) return auth;
 
   let payload: { type?: string; product?: ManagedProduct; theme?: SiteTheme };
@@ -44,13 +52,18 @@ export async function PUT(request: Request) {
   }
 
   if (payload.type === "theme") {
-    if (!hasAdminPermission(auth.role, "content")) return Response.json({ error: "Content access is required." }, { status: 403 });
+    if (!hasAdminPermission(auth, "content")) return Response.json({ error: "Content access is required." }, { status: 403 });
     if (!payload.theme || typeof payload.theme !== "object") return Response.json({ error: "Site content is required." }, { status: 400 });
-    await saveSiteTheme(payload.theme);
-    return Response.json({ ok: true });
+    try {
+      await saveSiteTheme(payload.theme);
+      return Response.json({ ok: true });
+    } catch (error) {
+      console.error("Site content save failed", error);
+      return Response.json({ error: "Site content could not be saved." }, { status: 503 });
+    }
   }
 
-  if (!hasAdminPermission(auth.role, "products")) return Response.json({ error: "Product access is required." }, { status: 403 });
+  if (!hasAdminPermission(auth, "products")) return Response.json({ error: "Product access is required." }, { status: 403 });
 
   const product = payload.product;
   if (!product || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(product.slug)) {
@@ -85,21 +98,12 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdminApi("products");
+  const auth = await requireAdminApi("products", request);
   if (auth instanceof Response) return auth;
   const slug = new URL(request.url).searchParams.get("slug") ?? "";
   if (!slug) return Response.json({ error: "A product slug is required." }, { status: 400 });
   try {
-    const existing = await getDb().select({ imagePublicId: catalogProducts.imagePublicId }).from(catalogProducts).where(eq(catalogProducts.slug, slug)).limit(1);
     await deleteManagedProduct(slug);
-    const publicId = existing[0]?.imagePublicId;
-    if (publicId) {
-      try {
-        await deleteProductImage(publicId);
-      } catch (error) {
-        console.error("Cloudinary cleanup failed", error);
-      }
-    }
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Catalog product delete failed", error);

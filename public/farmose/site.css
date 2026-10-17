@@ -286,3 +286,23 @@ body.menu-open .menu li:nth-child(4) a{transition-delay:.24s,0s}
 .modal .bx{background:var(--cream);border-radius:var(--round);padding:30px;max-width:520px;line-height:1.5}
 .modal h3{font-family:var(--serif);font-weight:400;font-size:2rem;margin:0 0 10px;color:var(--orange);text-transform:uppercase}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+
+/* Time-limited Farmose news and offers */
+.home-updates{position:absolute;left:max(var(--pad),env(safe-area-inset-left,0px));bottom:clamp(24px,4vw,50px);z-index:8;display:inline-flex;align-items:center;gap:20px;max-width:calc(100vw - 40px);padding:13px 20px;border:1px solid var(--deep);border-radius:99px;background:var(--cream);color:var(--deep);font-size:.8rem;font-weight:600;letter-spacing:.03em;box-shadow:0 10px 24px rgba(20,64,43,.13)}
+.home-updates:hover{background:var(--orange);color:var(--cream);border-color:var(--orange)}
+.updates-page .exp-hero{padding-bottom:clamp(36px,6vw,84px)}
+.updates-page .exp-hero .eyebrow{display:block;margin-bottom:12px;color:var(--orange);font-size:.75rem;font-weight:600;letter-spacing:.17em}
+.updates-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(16px,2vw,30px);padding:0 max(var(--pad),env(safe-area-inset-left,0px)) clamp(90px,10vw,150px)}
+.update-card{min-width:0;overflow:hidden;border:1px solid rgba(20,64,43,.18);border-radius:var(--round);background:var(--peach);display:flex;flex-direction:column}
+.update-card>img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--deep)}
+.update-card-copy{padding:clamp(22px,3vw,40px);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.update-kind{font-size:.74rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
+.update-card h2,.updates-empty h2{font-family:var(--serif);font-size:clamp(2rem,1.2rem + 2vw,3.7rem);line-height:1.06;font-weight:400;text-transform:uppercase;color:var(--orange);margin:0}
+.update-card p{margin:0;line-height:1.55;max-width:62ch}
+.update-card .update-summary{font-size:1.05rem;font-weight:600}
+.update-card .update-body{white-space:normal}
+.update-card small{font-size:.77rem;opacity:.7}
+.update-card .btn{margin-top:12px}
+.updates-empty{grid-column:1/-1;padding:clamp(45px,7vw,100px);border:1px solid var(--deep);border-radius:var(--round);text-align:center}
+.updates-empty p{margin-bottom:0}
+@media(max-width:700px){.home-updates{left:50%;bottom:103px;transform:translateX(-50%);white-space:nowrap}.updates-list{grid-template-columns:1fr}.updates-page .exp-hero{padding-top:145px}}

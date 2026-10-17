@@ -3,18 +3,20 @@
 import { useEffect } from "react";
 import type { ManagedProduct } from "../catalog-server";
 import type { SiteTheme } from "../farmose-data";
+import type { PublicUpdate } from "../../lib/updates";
 import { startFarmose } from "./farmose-engine";
 
 type Props = {
   products: ManagedProduct[];
   hiddenDesignSlugs: string[];
   theme: SiteTheme;
+  updates: PublicUpdate[];
   initialRoute?: string;
 };
 
 /** The supplied layout is kept in React; its motion engine mounts into #view. */
-export function FarmoseExperience({ products, hiddenDesignSlugs, theme, initialRoute = "home" }: Props) {
-  useEffect(() => startFarmose({ products, hiddenDesignSlugs, theme, initialRoute }), [products, hiddenDesignSlugs, theme, initialRoute]);
+export function FarmoseExperience({ products, hiddenDesignSlugs, theme, updates, initialRoute = "home" }: Props) {
+  useEffect(() => startFarmose({ products, hiddenDesignSlugs, theme, updates, initialRoute }), [products, hiddenDesignSlugs, theme, updates, initialRoute]);
   const logo = /^(\/(?!\/)|https:\/\/)/.test(theme.experienceLogoImage) ? theme.experienceLogoImage : "/farmose/img/logo.png";
 
   return (
@@ -34,6 +36,7 @@ export function FarmoseExperience({ products, hiddenDesignSlugs, theme, initialR
           <li><a href="#pantry" data-go="pantry"><span data-i="pantry">Pantry</span><span className="d" /></a></li>
           <li><a href="#production" data-go="production"><span data-i="production">Production</span><span className="d" /></a></li>
           <li><a href="#experience" data-go="experience"><span data-i="experience">Experience</span><span className="d" /></a></li>
+          <li><a href="/updates" data-go="updates"><span data-i="updates">News &amp; offers</span><span className="d" /></a></li>
         </ul>
         <div className="sub"><a href="#about" data-go="about" data-i="about">About</a><a href="#contacts" data-go="contacts" data-i="contacts">Contacts</a><a href="#basket" data-action="basket"><span data-i="shop">Shop</span> &#8599;</a></div>
       </nav>

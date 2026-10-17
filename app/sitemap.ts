@@ -8,7 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const protocol = incoming.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
   const { products } = await readExperienceStorefront();
-  const routes = ["", "/shop", "/about", "/wholesale"];
+  const routes = ["", "/shop", "/about", "/wholesale", "/updates"];
   return [
     ...routes.map((route) => ({ url: `${origin}${route}`, changeFrequency: route === "/shop" ? "daily" as const : "monthly" as const, priority: route === "" ? 1 : .8 })),
     ...products.filter((product) => product.active).map((product) => ({ url: `${origin}/products/${product.slug.replace(/^pantry-/, "")}`, changeFrequency: "weekly" as const, priority: .7 })),
