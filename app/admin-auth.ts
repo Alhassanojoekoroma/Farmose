@@ -1,8 +1,8 @@
 import { query } from "../lib/postgres";
 import { getAuth } from "../lib/auth/server";
-import { adminPermissions, canAdminPerform, rolePermissions, type AdminPermission, type AdminRole } from "../lib/permissions";
+import { adminPermissions, canAdminPerform, resolveAdminRole, rolePermissions, validPermissions, type AdminPermission, type AdminRole } from "../lib/permissions";
 
-export { adminPermissions, rolePermissions };
+export { adminPermissions, rolePermissions, validPermissions };
 export type { AdminPermission, AdminRole };
 export type AdminSession = {
   email: string;
@@ -18,11 +18,6 @@ function ownerEmails() {
 
 export function isOwnerEmail(email: string) {
   return ownerEmails().includes(email.trim().toLowerCase());
-}
-
-export function validPermissions(value: unknown): AdminPermission[] | null {
-  if (!Array.isArray(value) || value.some((item) => !adminPermissions.includes(item))) return null;
-  return [...new Set(value)] as AdminPermission[];
 }
 
 export function hasAdminPermission(user: AdminSession, permission: AdminPermission) {
@@ -48,10 +43,9 @@ export async function getAdminAccess(user: { email: string; name?: string | null
   );
   const record = rows[0];
   if (!record?.active) return null;
-  const role = (["editor", "orders", "content", "media", "updates", "custom"] as string[]).includes(record.role)
-    ? record.role as AdminRole : "custom";
-  const permissions = validPermissions(record.permissions) ?? [];
-  return { email: normalized, displayName: record.display_name || user.name || normalized, role, permissions };
+  const access = resolveAdminRole(record.role, record.permissions);
+  if (!access) return null;
+  return { email: normalized, displayName: record.display_name || user.name || normalized, ...access };
 }
 
 export async function getAdminUser(): Promise<AdminSession | null> {

@@ -15,10 +15,16 @@ export async function POST(request: NextRequest, context: Context) {
       const payload = await request.clone().json();
       email = typeof payload?.email === "string" ? payload.email : "";
     } catch {
-      return Response.json({ error: "A valid sign-up request is required." }, { status: 400 });
+      return Response.json({
+        code: "INVALID_SIGN_UP_REQUEST",
+        message: "A valid sign-up request is required.",
+      }, { status: 400 });
     }
     if (!email || !await canRegisterAdmin(email)) {
-      return Response.json({ error: "This email has not been approved for Farmose staff access." }, { status: 403 });
+      return Response.json({
+        code: "STAFF_ACCESS_NOT_APPROVED",
+        message: "This email has not been approved for Farmose staff access. Ask the owner to add it under Team, or sign in with an existing approved account.",
+      }, { status: 403 });
     }
   }
   return getAuth().handler().POST(request, context);

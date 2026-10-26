@@ -28,7 +28,7 @@ type AdminPayload = {
 };
 
 type Tab = "products" | "appearance" | "media" | "orders" | "updates" | "team";
-type StaffUser = { email: string; displayName: string; role: Exclude<AdminRole, "owner">; permissions: AdminPermission[]; active: boolean };
+type StaffUser = { email: string; displayName: string; role: AdminRole; permissions: AdminPermission[]; active: boolean };
 type UpdateDraft = Omit<PublicUpdate, "endsAt"> & { endsAt: string };
 
 type MediaAsset = {
@@ -91,7 +91,7 @@ const blankUpdate = (): UpdateDraft => ({
   linkUrl: "", startsAt: localDateTime(new Date().toISOString()), endsAt: "", published: false,
 });
 
-export function AdminPanel({ adminName, adminRole, permissions }: { adminName: string; adminRole: AdminRole; permissions: AdminPermission[] }) {
+export function AdminPanel({ adminEmail, adminName, adminRole, permissions }: { adminEmail: string; adminName: string; adminRole: AdminRole; permissions: AdminPermission[] }) {
   const can = (permission: AdminPermission) => permissions.includes(permission);
   const firstTab: Tab = can("products") ? "products" : can("orders") ? "orders" : can("content") ? "appearance" : can("updates") ? "updates" : can("media") ? "media" : "team";
   const [tab, setTab] = useState<Tab>(firstTab);
@@ -186,15 +186,19 @@ export function AdminPanel({ adminName, adminRole, permissions }: { adminName: s
     event.preventDefault();
     setSaving(true);
     setError("");
-    const response = await fetch("/api/admin/team", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(staffDraft) });
-    const result = await readApiResponse<Record<string, never>>(response);
-    if (!response.ok) setError(result.error || "Staff access could not be saved.");
-    else {
-      setNotice("Staff access saved.");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/team", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(staffDraft) });
+      const result = await readApiResponse<Record<string, never>>(response);
+      if (!response.ok) throw new Error(result.error || "Account access could not be saved.");
+      setNotice("Account access saved. Share the Farmose admin link so they can create their own password and verify their email.");
       setStaffDraft({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true });
       await loadTeam();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Account access could not be saved.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function removeStaff(email: string) {
@@ -451,14 +455,14 @@ export function AdminPanel({ adminName, adminRole, permissions }: { adminName: s
           {can("orders") && <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><span>◎</span>Orders {newOrders > 0 && <b>{newOrders}</b>}</button>}
           {can("updates") && <button className={tab === "updates" ? "active" : ""} onClick={() => { setTab("updates"); void loadUpdates(); }}><span>✦</span>News & offers</button>}
           {can("media") && <button className={tab === "media" ? "active" : ""} onClick={() => { setTab("media"); void loadMedia(); }}><span>▧</span>Media</button>}
-          {can("team") && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Staff</button>}
+          {can("team") && <button className={tab === "team" ? "active" : ""} onClick={() => { setTab("team"); void loadTeam(); }}><span>♙</span>Team</button>}
         </nav>
         <div className="admin-account"><small>Signed in as</small><strong>{adminName}</strong><SignOutButton /></div>
       </aside>
 
       <section className="admin-workspace">
         <header className="admin-topbar">
-          <div><p>FARMOSE ADMINISTRATION · {adminRole.toUpperCase()}</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront content" : tab === "media" ? "Media library" : tab === "updates" ? "News & offers" : tab === "team" ? "Staff & roles" : "Customer orders"}</h1></div>
+          <div><p>FARMOSE ADMINISTRATION · {adminRole.toUpperCase()}</p><h1>{tab === "products" ? "Products" : tab === "appearance" ? "Storefront content" : tab === "media" ? "Media library" : tab === "updates" ? "News & offers" : tab === "team" ? "Team & roles" : "Customer orders"}</h1></div>
           <a href="/" target="_blank" rel="noreferrer">View live store ↗</a>
         </header>
         {(notice || error) && <div className={`admin-message ${error ? "error" : ""}`}>{error || notice}</div>}
@@ -585,21 +589,21 @@ export function AdminPanel({ adminName, adminRole, permissions }: { adminName: s
 
         {!loading && tab === "team" && can("team") && (
           <section className="admin-team admin-orders">
-             <div className="admin-section-title"><div><p>ROLE-BASED ACCESS</p><h2>Staff accounts</h2><small>Approve each person&apos;s email, choose a role, then adjust exactly which parts of Farmose they can manage. Staff verify their email when creating a login.</small></div></div>
+             <div className="admin-section-title"><div><p>ROLE-BASED ACCESS</p><h2>Business owners &amp; staff</h2><small>Approve an email and choose its access. Business owners can manage Farmose and the team. Each person creates their own password and verifies their email at the Farmose admin link.</small></div></div>
             <form className="admin-team-form admin-form-grid" onSubmit={saveStaff}>
-              <label><span>Staff email</span><input required type="email" value={staffDraft.email} onChange={(event) => setStaffDraft({ ...staffDraft, email: event.target.value })} /></label>
+              <label><span>Account email</span><input required type="email" value={staffDraft.email} onChange={(event) => setStaffDraft({ ...staffDraft, email: event.target.value })} /></label>
               <label><span>Display name / username</span><input required value={staffDraft.displayName} onChange={(event) => setStaffDraft({ ...staffDraft, displayName: event.target.value })} /></label>
               <label><span>Role</span><select value={staffDraft.role} onChange={(event) => {
                 const role = event.target.value as StaffUser["role"];
-                setStaffDraft({ ...staffDraft, role, permissions: role === "custom" ? staffDraft.permissions : [...rolePermissions[role]] });
-              }}><option value="editor">Store editor</option><option value="orders">Order manager</option><option value="content">Content editor</option><option value="media">Media manager</option><option value="updates">News & offers editor</option><option value="custom">Custom permissions</option></select></label>
+                setStaffDraft({ ...staffDraft, role, permissions: role === "custom" ? staffDraft.permissions.filter((permission) => permission !== "team") : [...rolePermissions[role]] });
+              }}><option value="owner">Business owner — full control</option><option value="editor">Store editor</option><option value="orders">Order manager</option><option value="content">Content editor</option><option value="media">Media manager</option><option value="updates">News & offers editor</option><option value="custom">Custom permissions</option></select></label>
               <label className="admin-switch"><input type="checkbox" checked={staffDraft.active} onChange={(event) => setStaffDraft({ ...staffDraft, active: event.target.checked })} /><span>Access active</span></label>
-              <fieldset className="admin-permissions"><legend>Allowed sections</legend>{editablePermissions.map((permission) => <label key={permission}><input type="checkbox" checked={staffDraft.permissions.includes(permission)} onChange={(event) => setStaffDraft((current) => ({ ...current, role: "custom", permissions: event.target.checked ? [...current.permissions, permission] : current.permissions.filter((value) => value !== permission) }))} />{permissionLabels[permission]}</label>)}</fieldset>
-              <div className="admin-actions"><button type="button" onClick={() => setStaffDraft({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true })}>Clear form</button><button className="primary" type="submit" disabled={saving || !staffDraft.permissions.length}>{saving ? "Saving…" : "Save staff access"}</button></div>
+              <fieldset className="admin-permissions" disabled={staffDraft.role === "owner"}><legend>{staffDraft.role === "owner" ? "Full control, including team management" : "Allowed sections"}</legend>{editablePermissions.map((permission) => <label key={permission}><input type="checkbox" checked={staffDraft.permissions.includes(permission)} onChange={(event) => setStaffDraft((current) => ({ ...current, role: "custom", permissions: event.target.checked ? [...current.permissions, permission] : current.permissions.filter((value) => value !== permission) }))} />{permissionLabels[permission]}</label>)}</fieldset>
+              <div className="admin-actions"><button type="button" onClick={() => setStaffDraft({ email: "", displayName: "", role: "editor", permissions: [...rolePermissions.editor], active: true })}>Clear form</button><button className="primary" type="submit" disabled={saving || !staffDraft.permissions.length}>{saving ? "Saving…" : "Save account access"}</button></div>
             </form>
             <div className="admin-team-list">
-              {staff.map((member) => <article key={member.email}><div><strong>{member.displayName}</strong><small>{member.email}</small></div><div><b>{member.role === "custom" ? "Custom" : member.role}</b><small>{member.permissions.map((permission) => permissionLabels[permission]).join(", ")}</small><small>{member.active ? "Active" : "Disabled"}</small></div><div className="admin-staff-actions"><button type="button" onClick={() => setStaffDraft({ ...member })}>Edit</button><button type="button" className="danger" onClick={() => void removeStaff(member.email)}>Remove</button></div></article>)}
-              {!staff.length && <div className="admin-empty"><h3>No staff accounts yet.</h3><p>Add a staff email above to grant the appropriate access.</p></div>}
+              {staff.map((member) => <article key={member.email}><div><strong>{member.displayName}</strong><small>{member.email}</small></div><div><b>{member.role === "owner" ? "Business owner" : member.role === "custom" ? "Custom" : member.role}</b><small>{member.permissions.map((permission) => permissionLabels[permission]).join(", ")}</small><small>{member.active ? "Active" : "Disabled"}</small></div><div className="admin-staff-actions"><button type="button" disabled={member.email === adminEmail} onClick={() => setStaffDraft({ ...member })}>Edit</button><button type="button" className="danger" disabled={member.email === adminEmail} onClick={() => void removeStaff(member.email)}>Remove</button></div></article>)}
+              {!staff.length && <div className="admin-empty"><h3>No additional accounts yet.</h3><p>Add a business owner or staff email above to approve their access.</p></div>}
             </div>
           </section>
         )}

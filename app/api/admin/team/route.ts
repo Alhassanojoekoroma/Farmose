@@ -1,7 +1,6 @@
-import { isOwnerEmail, requireAdminApi, rolePermissions, validPermissions, type AdminRole } from "../../../admin-auth";
+import { isOwnerEmail, requireAdminApi, type AdminRole } from "../../../admin-auth";
+import { resolveAdminRole } from "../../../../lib/permissions";
 import { query } from "../../../../lib/postgres";
-
-const staffRoles: AdminRole[] = ["editor", "orders", "content", "media", "updates", "custom"];
 
 function databaseUnavailable(error: unknown) {
   console.error("Staff access database operation failed", error);
@@ -17,7 +16,7 @@ export async function GET() {
     );
     return Response.json({ users: users.map((user) => ({
       email: user.email, displayName: user.display_name, role: user.role,
-      permissions: user.permissions, active: user.active,
+      permissions: resolveAdminRole(user.role, user.permissions)?.permissions ?? [], active: user.active,
     })) });
   } catch (error) {
     return databaseUnavailable(error);
@@ -31,14 +30,15 @@ export async function PUT(request: Request) {
   try { payload = await request.json(); } catch { return Response.json({ error: "Valid staff details are required." }, { status: 400 }); }
   const email = payload.email?.trim().toLowerCase() ?? "";
   const displayName = payload.displayName?.trim() ?? "";
-  const permissions = validPermissions(payload.permissions);
-  if (!/^\S+@\S+\.\S+$/.test(email) || isOwnerEmail(email) || !displayName || displayName.length > 100 ||
-    !staffRoles.includes(payload.role as AdminRole) || !permissions || !permissions.length || permissions.includes("team")) {
-    return Response.json({ error: "Enter a staff email, name, role and allowed permissions." }, { status: 400 });
+  const assignment = resolveAdminRole(payload.role, payload.permissions);
+  if (email === auth.email) {
+    return Response.json({ error: "Ask another business owner to change your account access." }, { status: 409 });
   }
-  const preset = payload.role !== "custom" ? rolePermissions[payload.role as Exclude<AdminRole, "owner" | "custom">] : null;
-  const role = preset && preset.length === permissions.length && preset.every((item) => permissions.includes(item))
-    ? payload.role : "custom";
+  if (!/^\S+@\S+\.\S+$/.test(email) || isOwnerEmail(email) || !displayName || displayName.length > 100 ||
+    !assignment) {
+    return Response.json({ error: "Enter an account email, name, role and allowed permissions." }, { status: 400 });
+  }
+  const { role, permissions } = assignment;
   try {
     await query(`INSERT INTO admin_users (email, display_name, role, permissions, active, updated_at)
       VALUES ($1,$2,$3,$4,$5,now())
@@ -55,6 +55,9 @@ export async function DELETE(request: Request) {
   const auth = await requireAdminApi("team", request);
   if (auth instanceof Response) return auth;
   const email = new URL(request.url).searchParams.get("email")?.trim().toLowerCase() ?? "";
+  if (email === auth.email) {
+    return Response.json({ error: "Ask another business owner to remove your account access." }, { status: 409 });
+  }
   if (!email || isOwnerEmail(email)) return Response.json({ error: "A valid staff email is required." }, { status: 400 });
   try {
     await query("DELETE FROM admin_users WHERE email = $1", [email]);

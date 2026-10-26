@@ -7,7 +7,7 @@ export type ExperienceSeed = Product & {
   stockQuantity: number;
 };
 
-/** The eight products and supplied artwork in the replacement design. */
+/** Packaged pantry products and their supplied artwork. */
 export const experienceProducts: ExperienceSeed[] = [
   {
     slug: "pantry-honey", name: "Raw Honey", shortName: "Raw Honey", category: "Pantry", tag: "Honey", price: 0, unit: "400 g",
@@ -64,5 +64,12 @@ export const experienceProducts: ExperienceSeed[] = [
     description: "The family and kitchen size: two kilos of smooth groundnut paste. Ground groundnuts only, ready for spreads, dips, smoothies and sauces.",
     details: "2 kg tub", features: ["In spreads, dips, smoothies or as a base for sauces.", "Store in a cool, dry place to maintain freshness.", "Two kilos. One ingredient."],
     active: true, siteVisible: true, sortOrder: 7, stockQuantity: 100,
+  },
+  {
+    slug: "pantry-crayfish", name: "Crayfish Powder", shortName: "Crayfish Powder", category: "Pantry", tag: "Seasonings", price: 0, unit: "350 g",
+    image: "/farmose/img/crayfish.webp", color: "#ff8a16", rating: 0, reviews: 0,
+    description: "Crayfish powder made in Sierra Leone, packed in a 350 g jar for seasoning soups, stews and sauces.",
+    details: "Jar", features: ["Add to soups, stews and sauces to taste.", "Store tightly closed in a cool, dry place.", "Contains crustaceans (crayfish). Made in Sierra Leone."],
+    active: true, siteVisible: true, sortOrder: 8, stockQuantity: 0,
   },
 ];

@@ -3,11 +3,12 @@ import { stat } from "node:fs/promises";
 import test from "node:test";
 import { selectExperienceCatalog } from "../app/experience-catalog.ts";
 import { POST as submitLegacyOrder } from "../app/api/orders/route.ts";
+import { experienceProducts } from "../app/farmose-experience-products.ts";
 
 const root = new URL("../", import.meta.url);
-const design = ["honey", "groundnut-paste", "cayenne-pepper", "keinda", "palm-oil", "benny", "tola", "groundnut-paste-2kg"];
+const design = experienceProducts.map((product) => product.slug.replace(/^pantry-/, ""));
 
-test("the launch catalog contains the eight ZIP products and excludes the former catalog", () => {
+test("the pantry catalog includes the supplied products and excludes the former catalog", () => {
   const all = [
     ...design.map((slug) => ({ slug: `pantry-${slug}`, siteVisible: true })),
     { slug: "seafood-bundle", siteVisible: false },
@@ -27,7 +28,7 @@ test("admin visibility changes hide a ZIP product without deleting it", () => {
 });
 
 test("the supplied product artwork is packaged for every launch product", async () => {
-  const images = ["honey", "groundnut-950", "pepper", "keinda", "palm-oil", "benny", "tola", "groundnut-2kg"];
+  const images = ["honey", "groundnut-950", "pepper", "keinda", "palm-oil", "benny", "tola", "groundnut-2kg", "crayfish"];
   for (const name of images) {
     const file = await stat(new URL(`public/farmose/img/${name}.webp`, root));
     assert.ok(file.size > 1000, `${name} image is empty`);

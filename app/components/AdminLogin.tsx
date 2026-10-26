@@ -85,7 +85,9 @@ export function AdminLogin({ initialEmail = "", verificationRequired = false }: 
         <img src="/farmose/img/logo.png" alt="Farmose" width={80} height={61} />
         <p>PRIVATE FARMOSE WORKSPACE</p>
         <h1>{mode === "register" ? "Create your Farmose login." : mode === "verify" ? "Verify your email." : "Sign in to manage Farmose."}</h1>
-        <p>Only the owner and approved staff can access this area.</p>
+        <p>{mode === "register"
+          ? "An existing owner must approve your email under Team before you create a login. Already have an account? Sign in below."
+          : "Only the owner and approved staff can access this area."}</p>
         <form className="admin-login-form" onSubmit={submit}>
           {mode === "register" && <label>Full name<input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} /></label>}
           <label>Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>

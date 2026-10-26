@@ -29,5 +29,5 @@ export default async function AdminPage() {
       </main>
     );
   }
-  return <AdminPanel adminName={admin.displayName} adminRole={admin.role} permissions={admin.permissions} />;
+  return <AdminPanel adminEmail={admin.email} adminName={admin.displayName} adminRole={admin.role} permissions={admin.permissions} />;
 }

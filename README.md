@@ -26,13 +26,27 @@ these out of the repository and client code.
 
 ## Administration
 
-The owner signs in at `/admin` with an email in `FARMOSE_OWNER_EMAILS`. For the
-first sign-in, choose **Create account** and verify the email address. No
-password is embedded in the code or issued by the server. The owner can add an
-approved staff email under **Team**, choose a preset role or custom permissions,
-and deactivate or remove access immediately. Staff create their own password
-and verify their email. Server routes enforce each permission; hiding a tab in
-the browser is not the access control.
+The initial owner signs in at `/admin` with an email in `FARMOSE_OWNER_EMAILS`.
+For a new account, choose **Create account**, choose a password, and verify the
+email address. No password is embedded in the code or issued by the server.
+
+For a business handover, an owner adds the recipient's email under **Team** and
+selects **Business owner — full control**. The recipient opens `/admin`, creates
+their own login, and verifies their email. Their approved owner role is stored
+in `admin_users`; it does not require adding their address to deployment
+configuration. They can then approve another business owner or assign staff
+preset roles or custom permissions. Owners have full access including team
+management. Staff cannot grant access or promote themselves.
+
+An owner can deactivate or remove another approved account immediately, even
+if that account has an existing session. Changing one's own access requires
+another owner, and initial owners configured in `FARMOSE_OWNER_EMAILS` remain
+protected by server configuration. Server routes enforce every permission;
+hiding a tab in the browser is not the access control.
+
+The `/admin/login` page stays public. Next.js `proxy.ts` refreshes session
+cookies before rendering `/admin`; role checks remain in the server-side
+administration code and API routes.
 
 | Permission | Scope |
 | --- | --- |

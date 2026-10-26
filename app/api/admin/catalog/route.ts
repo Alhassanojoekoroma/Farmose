@@ -83,7 +83,7 @@ export async function PUT(request: Request) {
       image: primaryImage,
       imageUrl: primaryImage,
       price: Number(product.price),
-      rating: Number(product.rating) || 5,
+      rating: Number.isFinite(Number(product.rating)) ? Number(product.rating) : 0,
       reviews: Number(product.reviews) || 0,
       sortOrder: Number(product.sortOrder) || 0,
       features: Array.isArray(product.features) ? product.features.filter((feature): feature is string => typeof feature === "string" && Boolean(feature)).slice(0, 3) : [],

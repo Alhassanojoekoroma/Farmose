@@ -496,8 +496,8 @@ em { font-style: normal; }
   .admin-shell { display: block; padding-bottom: 76px; }
   .admin-sidebar { position: fixed; z-index: 60; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 70px; padding: 8px 12px; flex-direction: row; align-items: center; }
   .admin-brand, .admin-account { display: none; }
-  .admin-sidebar nav { width: 100%; margin: 0; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); }
-  .admin-sidebar nav button { min-height: 53px; display: flex; flex-direction: column; gap: 0; font-size: 10px; text-align: center; }
+  .admin-sidebar nav { width: 100%; margin: 0; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+  .admin-sidebar nav button { min-width: 0; min-height: 53px; padding: 4px 2px; display: flex; flex-direction: column; justify-content: center; gap: 0; font-size: 10px; line-height: 1.2; text-align: center; }
   .admin-sidebar nav button span { font-size: 18px; }
   .admin-sidebar nav button b { position: absolute; margin: -4px 0 0 25px; }
   .admin-workspace { padding: 16px 12px 35px; }

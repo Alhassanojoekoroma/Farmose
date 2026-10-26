@@ -134,7 +134,7 @@ for(const product of Array.isArray(options.products)?options.products:[]){
  p.c=safeColor(product.color);
  if(current){p.managedUnit=unit;if(!slug.startsWith('groundnut-paste'))p.sizes=[unit]}
  if(!current){
-  p.cat=/spice|seed/i.test(product.tag)?'spice':/paste/i.test(product.tag)?'paste':/oil/i.test(product.tag)?'oil':/honey/i.test(product.tag)?'honey':'other';
+  p.cat=/spice|seed|season/i.test(product.tag)?'spice':/paste/i.test(product.tag)?'paste':/oil/i.test(product.tag)?'oil':/honey/i.test(product.tag)?'honey':'other';
   P.push(p);
  }
  const price=Number(product.price);
@@ -153,7 +153,7 @@ const listedBySlug=s=>listed.find(p=>p.slug===s);
 const stockOf=slug=>(PRICING[slug]||{}).stock||'in';
 const priceOf=(slug,size)=>{const pr=(PRICING[slug]||{}).prices||{};return typeof pr[size]==='number'?pr[size]:null};
 const money=n=>CONFIG.currency+' '+n.toLocaleString('en-US');
-const HERO=['groundnut-paste','cayenne-pepper','honey','keinda','palm-oil','benny','tola','groundnut-paste-2kg'].map(listedBySlug).filter(Boolean);
+const HERO=['groundnut-paste','cayenne-pepper','honey','keinda','palm-oil','benny','tola','groundnut-paste-2kg','crayfish'].map(listedBySlug).filter(Boolean);
 const tl=o=>o[lang]||o.en;
 
 const I={en:{home:'Home',pantry:'Pantry',production:'Production',experience:'Experience',updates:'News & offers',about:'About',contacts:'Contacts',shop:'Shop',menu:'Menu',close:'Close',
@@ -361,7 +361,7 @@ function initPantry(){const f=$('#flt');if(!f)return;f.addEventListener('click',
 
 function tableRows(list){return `<div class="r h"><span>${t('th')[0]}</span><span>${t('th')[1]}</span><span>${t('th')[2]}</span></div>`+list.map(p=>`<div class="r"><span>${tl(p.name)}</span><span>${p.sizes.join(' / ')}</span><span>${tl(p.pack)}</span></div>`).join('')}
 function viewProduction(){
- const A=['cayenne-pepper','tola','benny','keinda'].map(bySlug), B=['palm-oil','honey','groundnut-paste','groundnut-paste-2kg'].map(bySlug);
+ const A=['cayenne-pepper','tola','benny','keinda','crayfish'].map(listedBySlug).filter(Boolean), B=['palm-oil','honey','groundnut-paste','groundnut-paste-2kg'].map(listedBySlug).filter(Boolean);
  const v=document.createElement('div');v.className='page';
  v.innerHTML=`<section class="prod-hero"><span class="eyebrow">${t('prodEy')}</span><h1 class="disp">${lines(t('prodT').replace(' of|',' of|').replace('The bounty|','The bounty|'))}</h1><p class="fade">${t('prodP')}</p>
   <div class="ph">${['groundnut-paste','honey','palm-oil','cayenne-pepper','benny'].map(s=>`<img src="${img(bySlug(s).img)}" alt="">`).join('')}</div></section>

@@ -105,7 +105,7 @@ export async function saveManagedProduct(product: ManagedProduct) {
     product.imagePublicId ?? null, JSON.stringify(product.additionalImages ?? []),
     Math.max(0, Math.floor(Number(product.stockQuantity) || 0)),
     product.video ?? "", product.imagePosition ?? "center", product.color,
-    Number(product.rating) || 5, Number(product.reviews) || 0,
+    Number.isFinite(Number(product.rating)) ? Number(product.rating) : 0, Number(product.reviews) || 0,
     product.description, product.details, JSON.stringify(product.features ?? []),
     product.active !== false, product.siteVisible === true, Number(product.sortOrder) || 0,
   ];
